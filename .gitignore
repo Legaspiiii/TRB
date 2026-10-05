@@ -1,2 +1,6 @@
 MomentumWheelLoads_results.mat
 MomentumWheelLoads_sweep.csv
+ArmLoads_results.mat
+ArmLoads_sweep.csv
+ArmLoads_summary.txt
+MomentumWheelLoads_summary.txt
