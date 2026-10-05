@@ -27,10 +27,11 @@
 %    C. SPEED SWEEP, CAMPBELL DIAGRAM and TIME HISTORIES at nominal speed
 %
 %  QUICK START
-%    1. Edit section 1 "USER INPUTS" only.  Follow STEP 1 to STEP 5.
-%       Units are written on every line.  Anything marked optional can
-%       stay NaN; the script then uses a rigid / conservative fallback
-%       and lists it under "Notes and assumptions" in the report.
+%    1. Edit section 1 "USER INPUTS" only.  Follow STEP 1 to STEP 5 and
+%       fill in every  [ ]  .  Units are written on every line.  Anything
+%       marked optional can stay NaN; the script then uses a rigid /
+%       conservative fallback and lists it under "Notes and assumptions".
+%       If a required value is left empty the script stops and names it.
 %    2. Press Run.
 %    3. Read the printed report (Command Window) and the three figures.
 %       Everything is also kept in the struct  results  and written to
@@ -93,7 +94,7 @@
 %    - The relative phase of the two wheels is unknown.  'worst' adds the
 %      amplitudes, 'rss' root-sum-squares them (the SDO approach).
 %
-%  THE LAYOUT THE EXAMPLE INPUTS DESCRIBE
+%  THE LAYOUT THE INPUT TEMPLATE DESCRIBES
 %
 %        MW-1                    ARM                     MW-2
 %      +------+              (spins about x)           +------+
@@ -126,126 +127,140 @@ clear; clc; close all;
 %   STEP 2  wheel 1  - required data   (datasheet + drawing)
 %   STEP 3  wheel 2  - required data
 %   STEP 4  optional data              (leave as is if you don't have it)
-%   STEP 5  analysis settings          (defaults are fine)
+%   STEP 5  analysis settings
 %
-%   Every number below is an EXAMPLE.  Replace it with your own.
-%   Vectors are [x; y; z] in the structure frame, SI units unless the
-%   comment says otherwise.
+%   Fill in every line that shows  [ ]  .  The script stops and tells you
+%   which one is missing if you leave a required value empty.
+%   Vectors are [x; y; z] in the structure frame.  Units are in brackets.
 
-%% ---- STEP 1: reference point ---------------------------------------------
-%  Loads are reported at this point.  Example: the shaft centre where the
-%  arm sits.  Put a bearing position here to get the loads at that bearing.
-P_ref = [0; 0; 0];                          % [m]
+%% ---- STEP 1: reference point -------------------------------------------------
+%  Loads are reported at this point.  [0;0;0] = shaft centre where the arm
+%  sits.  Put a bearing position here to get the loads at that bearing.
+reference_point = [0; 0; 0];                  % [m]
 
-%% ---- STEP 2: WHEEL 1, required data --------------------------------------
-w = struct();
-w.name      = 'MW-1';
+%% ---- STEP 2: WHEEL 1, required --------------------------------------------------
+MW1_name              = 'MW-1';
+%  position and orientation (drawing)
+MW1_position          = [ ];                  % [m]  [x;y;z] centre of the mounting
+                                              %      face, e.g. [-0.25; 0; 0] for a
+                                              %      wheel 0.25 m left of centre
+MW1_spin_axis         = [-1; 0; 0];           % [-]  direction of the wheel's angular
+                                              %      momentum (right-hand rule).
+                                              %      -x = opposite to the arm (+x)
+MW1_cg_height         = [ ];                  % [m]  rotor CG height above the mounting
+                                              %      face, along the spin axis.
+                                              %      0 if MW1_position is the rotor CG
+%  mass, momentum, speed (datasheet)
+MW1_mass              = [ ];                  % [kg]     rotor (spinning part)
+MW1_rpm               = [ ];                  % [rpm]    nominal operating speed
+MW1_momentum          = [ ];                  % [N*m*s]  angular momentum at MW1_rpm
+                                              %          (leave empty if you give Izz)
+MW1_Izz               = [ ];                  % [kg*m^2] spin inertia
+                                              %          (leave empty if you give momentum)
+%  imbalance (datasheet).  Units:  static  'g*cm' 'g*mm' 'kg*m' 'oz*in'
+%                                  dynamic 'g*cm^2' 'g*mm^2' 'kg*m^2' 'oz*in^2'
+MW1_static_imbalance  = [ ];    MW1_static_unit  = 'g*cm';
+MW1_dynamic_imbalance = [ ];    MW1_dynamic_unit = 'g*cm^2';
 
-%  Where it is and which way it spins
-w.r_mount   = [-0.250; 0; 0];               % [m]  centre of the mounting face
-                                            %      (left end of the shaft)
-w.spin_axis = [-1; 0; 0];                   % [-]  direction of the wheel's
-                                            %      angular momentum, right-hand
-                                            %      rule.  -x = opposite to the
-                                            %      arm, which spins about +x
-w.L_cg      = 0.030;                        % [m]  rotor CG height above the
-                                            %      mounting face, measured along
-                                            %      spin_axis (outline drawing).
-                                            %      0 if r_mount is the rotor CG
-%  Mass, inertia, speed  (datasheet)
-w.mass      = 1.50;                         % [kg]     rotor (spinning part)
-w.rpm_nom   = 6000;                         % [rpm]    nominal operating speed
-w.H_nom     = 1.00;                         % [N*m*s]  angular momentum at
-                                            %          rpm_nom.  NaN if you
-                                            %          give Izz instead
-w.Izz       = NaN;                          % [kg*m^2] spin inertia.  NaN ->
-                                            %          computed as H_nom/omega
+%% ---- STEP 3: WHEEL 2, required --------------------------------------------------
+MW2_name              = 'MW-2';
+MW2_position          = [ ];                  % [m]  e.g. [0.25; 0; 0], right of centre
+MW2_spin_axis         = [-1; 0; 0];           % [-]  same as wheel 1 (spins the same way)
+MW2_cg_height         = [ ];                  % [m]
+MW2_mass              = [ ];                  % [kg]
+MW2_rpm               = [ ];                  % [rpm]
+MW2_momentum          = [ ];                  % [N*m*s]  or leave empty and give Izz
+MW2_Izz               = [ ];                  % [kg*m^2] or leave empty and give momentum
+MW2_static_imbalance  = [ ];    MW2_static_unit  = 'g*cm';
+MW2_dynamic_imbalance = [ ];    MW2_dynamic_unit = 'g*cm^2';
 
-%  Imbalance  (datasheet).  Pick the unit the datasheet uses:
-%     static  : 'g*cm'   'g*mm'   'kg*m'   'oz*in'
-%     dynamic : 'g*cm^2' 'g*mm^2' 'kg*m^2' 'oz*in^2'
-w.Us = 0.50;   w.Us_unit = 'g*cm';          % static  imbalance
-w.Ud = 5.0;    w.Ud_unit = 'g*cm^2';        % dynamic imbalance
+%% ---- STEP 4: optional data.  Leave as NaN / 0 if unknown ----------------------
+%  Wheel 1
+MW1_Irr               = NaN;                  % [kg*m^2] transverse inertia about rotor
+                                              %          CG.  Needed only for the rocking
+                                              %          mode or the tilt option
+MW1_cg_offset_mm      = NaN;                  % [mm]  rotor CG offset from the spin axis.
+                                              %       Used instead of the static imbalance
+                                              %       if that is left empty
+MW1_tilt_deg          = NaN;                  % [deg] principal-axis tilt.  Used instead of
+                                              %       the dynamic imbalance if that is left
+                                              %       empty (needs Irr)
+MW1_imbalance_phase   = 0;                    % [rad] angle between static and dynamic
+                                              %       imbalance.  Unknown -> 0
+MW1_harmonics         = [1 1 1];              % rows [h, force ratio, moment ratio].  No
+                                              % test data -> keep [1 1 1].  A 2x line at
+                                              % 20 % of the 1x -> [1 1 1; 2 0.2 0.2]
+MW1_axial_coeff       = 0;                    % [kg*m] axial 1x force coefficient,
+                                              %        F = coeff*omega^2.  0 if unknown
+MW1_rock_freq         = NaN;  MW1_rock_damp   = 0.02;   % [Hz, -] rocking mode at 0 rpm
+MW1_axial_freq        = NaN;  MW1_axial_damp  = 0.02;   % [Hz, -] axial mode
+MW1_radial_freq       = NaN;  MW1_radial_damp = 0.02;   % [Hz, -] radial mode
+                                              % NaN frequency = rigid wheel
+%  Wheel 2
+MW2_Irr               = NaN;
+MW2_cg_offset_mm      = NaN;
+MW2_tilt_deg          = NaN;
+MW2_imbalance_phase   = 0;
+MW2_harmonics         = [1 1 1];
+MW2_axial_coeff       = 0;
+MW2_rock_freq         = NaN;  MW2_rock_damp   = 0.02;
+MW2_axial_freq        = NaN;  MW2_axial_damp  = 0.02;
+MW2_radial_freq       = NaN;  MW2_radial_damp = 0.02;
 
-%% ---- STEP 4 (part of): WHEEL 1, optional data -----------------------------
-%  Leave these as they are if you do not have the information.  The report
-%  tells you which fallback was used.
-w.Irr       = NaN;                          % [kg*m^2] transverse inertia about
-                                            %          rotor CG. Needed only for
-                                            %          f_rock or tilt_deg
-w.e_cg_mm   = NaN;                          % [mm]  rotor CG offset from the spin
-                                            %       axis.  Used instead of Us
-                                            %       when Us = NaN:  Us = mass*e
-w.tilt_deg  = NaN;                          % [deg] tilt of the principal inertia
-                                            %       axis.  Used instead of Ud
-                                            %       when Ud = NaN (needs Irr)
-w.phase_Ud  = 0;                            % [rad] angle between the static and
-                                            %       dynamic imbalance.  Unknown
-                                            %       -> 0 (conservative)
-w.harmonics = [ 1  1  1 ];                  % rows [h, force ratio, moment ratio]
-                                            % h = multiple of spin speed; ratios
-                                            % scale the 1x imbalance loads.  No
-                                            % test data -> keep [1 1 1].  A 2x
-                                            % line at 20 % -> add [2 0.2 0.2]
-w.C_ax      = 0;                            % [kg*m] axial 1x force coefficient,
-                                            %        F = C_ax*omega^2.  0 if
-                                            %        unknown
-w.f_rock = NaN;   w.zeta_rock = 0.02;       % [Hz, -] rocking mode at 0 rpm
-w.f_ax   = NaN;   w.zeta_ax   = 0.02;       % [Hz, -] axial mode
-w.f_rad  = NaN;   w.zeta_rad  = 0.02;       % [Hz, -] radial translation mode
-                                            % NaN frequency = rigid wheel
-wheel(1) = w;
+%  Motion of the structure that carries the wheel bearings
+base_rate             = [0; 0; 0];            % [rad/s] angular rate of the mounting
+                                              %   structure.  0 when the shaft axis is
+                                              %   fixed in space (the arm spinning ABOUT
+                                              %   the shaft does not count).  Non-zero
+                                              %   only if the whole shaft is slewed ->
+                                              %   gyroscopic torque
+spin_accel            = 0;                    % [rad/s^2] wheel spin-up (+) / spin-down
+                                              %   (-) rate.  0 at steady speed
+base_accel            = [0; 0; 0];            % [m/s^2] quasi-static acceleration of the
+                                              %   structure.  0 on orbit; [0;0;9.81*8]
+                                              %   for an 8 g case
+arm_momentum          = [0; 0; 0];            % [N*m*s] momentum of the ARM, only to
+                                              %   print the net momentum of arm + wheels.
+                                              %   I_arm*omega_arm along +x.  0 to ignore
 
-%% ---- STEP 3: WHEEL 2 ---------------------------------------------------------
-%  Starts as a copy of wheel 1.  Overwrite anything that differs.  If the
-%  wheels are different models, overwrite mass, H_nom, Us, Ud ... as well.
-w           = wheel(1);
-w.name      = 'MW-2';
-w.r_mount   = [ 0.250; 0; 0];               % [m]  right end of the shaft
-w.spin_axis = [-1; 0; 0];                   % same direction as wheel 1
-w.rpm_nom   = 6000;                         % [rpm]
-wheel(2) = w;
-clear w
+%% ---- STEP 5: analysis settings --------------------------------------------------
+assembly_mass         = [ ];                  % [kg]  mass of the whole assembly the wheel
+                                              %       loads shake (shaft + arm + wheels).
+                                              %       For the acceleration plot: a = F/m
+combine_method        = 'worst';              % 'worst' = add amplitudes (structural sizing)
+                                              % 'rss'   = root-sum-square (jitter, SDO)
+rpm_sweep             = 0:50:8000;            % [rpm] speed sweep applied to both wheels
+structure_modes_Hz    = [];                   % [Hz]  known structure modes to draw on the
+                                              %       Campbell diagram, e.g. [35 60 110]
+accel_limit_g         = NaN;                  % [g]   acceleration limit line on the plot
+time_length           = 0.05;                 % [s]   time-history length
+sample_rate           = 20e3;                 % [Hz]  time-history sample rate
+wheel2_phase          = 0;                    % [rad] phase of wheel 2 relative to wheel 1,
+                                              %       time history only
+makePlots             = true;                 % figures on/off
+saveOutputs           = true;                 % write .mat, .csv and summary .txt on/off
 
-%% ---- STEP 4 (rest): motion of the mounting structure, optional ----------------
-omega_base = [0; 0; 0];                     % [rad/s]  angular rate of the
-                                            %   structure carrying the wheel
-                                            %   bearings.  0 when the shaft axis
-                                            %   is fixed in space (the arm
-                                            %   spinning ABOUT the shaft does not
-                                            %   count).  Non-zero only if the
-                                            %   whole shaft is slewed, e.g.
-                                            %   [0;0;0.1] -> gyroscopic torque
-alpha_spin = 0;                             % [rad/s^2] wheel spin-up (+) or
-                                            %   spin-down (-) rate. 0 at steady
-                                            %   speed
-a_base     = [0; 0; 0];                     % [m/s^2] quasi-static acceleration
-                                            %   of the structure.  0 on orbit;
-                                            %   [0;0;9.81*8] for an 8 g case
-H_other    = [0; 0; 0];                     % [N*m*s] momentum of the ARM, only
-                                            %   to print the net momentum of
-                                            %   arm + wheels.  I_arm*omega_arm
-                                            %   along +x.  0 to ignore
+%% ========================================================================
+%%  (end of user inputs - nothing below needs editing)
+%% ========================================================================
 
-%% ---- STEP 5: analysis settings (defaults are fine) ----------------------------
-combine_method = 'worst';   % how the two wheels (and harmonics) are added:
-                            %   'worst' = sum of amplitudes  (structural sizing)
-                            %   'rss'   = root-sum-square    (jitter, SDO method)
-rpm_sweep      = 0:50:8000; % [rpm] speed sweep applied to both wheels
-sc_modes_Hz    = [];        % [Hz]  known structure modes to draw on the
-                            %       Campbell diagram, e.g. [35 60 110]
-t_end          = 0.05;      % [s]   time-history length at nominal speed
-fs             = 20e3;      % [Hz]  time-history sample rate
-phase_wheel2   = 0;         % [rad] phase of wheel 2 relative to wheel 1,
-                            %       time history only (unknown in reality)
-m_struct       = 10.0;      % [kg]  mass of the whole assembly the wheel
-                            %       loads shake (shaft + arm + wheels).
-                            %       Used for the acceleration plot:
-                            %       a = F / m_struct  (rigid body)
-accel_limit_g  = NaN;       % [g]   OPTIONAL acceleration limit to draw on
-                            %       the acceleration plot, e.g. 0.05
-makePlots      = true;      % figures on/off
-saveOutputs    = true;      % write .mat, .csv and summary .txt on/off
+%% ---- collect the inputs into the internal wheel structures -------------------
+wheel = make_wheel('MW1_', MW1_name, MW1_position, MW1_spin_axis, MW1_cg_height, ...
+    MW1_mass, MW1_rpm, MW1_momentum, MW1_Izz, ...
+    MW1_static_imbalance, MW1_static_unit, MW1_dynamic_imbalance, MW1_dynamic_unit, ...
+    MW1_Irr, MW1_cg_offset_mm, MW1_tilt_deg, MW1_imbalance_phase, MW1_harmonics, MW1_axial_coeff, ...
+    MW1_rock_freq, MW1_rock_damp, MW1_axial_freq, MW1_axial_damp, MW1_radial_freq, MW1_radial_damp);
+wheel(2) = make_wheel('MW2_', MW2_name, MW2_position, MW2_spin_axis, MW2_cg_height, ...
+    MW2_mass, MW2_rpm, MW2_momentum, MW2_Izz, ...
+    MW2_static_imbalance, MW2_static_unit, MW2_dynamic_imbalance, MW2_dynamic_unit, ...
+    MW2_Irr, MW2_cg_offset_mm, MW2_tilt_deg, MW2_imbalance_phase, MW2_harmonics, MW2_axial_coeff, ...
+    MW2_rock_freq, MW2_rock_damp, MW2_axial_freq, MW2_axial_damp, MW2_radial_freq, MW2_radial_damp);
+P_ref        = need(reference_point, 'reference_point');
+m_struct     = need(assembly_mass, 'assembly_mass');
+omega_base   = base_rate(:);   alpha_spin = spin_accel;   a_base = base_accel(:);
+H_other      = arm_momentum(:);
+sc_modes_Hz  = structure_modes_Hz;   t_end = time_length;   fs = sample_rate;
+phase_wheel2 = wheel2_phase;
 
 %% ========================================================================
 %% 2. DERIVED QUANTITIES AND INPUT CHECKS
@@ -795,6 +810,56 @@ function print_summary(fid, S, wheel, method, m_struct, axial_dir)
         fprintf(fid, '   (all zero: fixed shaft axis, constant speed, no base acceleration)');
     end
     fprintf(fid, '\n%s\n', L);
+end
+
+function w = make_wheel(pre, name, position, spin_axis, cg_height, mass, rpm, ...
+    momentum, Izz, Us, Us_unit, Ud, Ud_unit, Irr, cg_offset_mm, tilt_deg, ...
+    imbalance_phase, harmonics, axial_coeff, f_rock, z_rock, f_ax, z_ax, f_rad, z_rad)
+% Pack one wheel's inputs into the internal structure, checking that every
+% required value has been entered.  pre is 'MW1_' or 'MW2_' for messages.
+    w = struct();
+    w.name      = name;
+    w.r_mount   = need(position,  [pre 'position']);
+    w.spin_axis = need(spin_axis, [pre 'spin_axis']);
+    w.L_cg      = need(cg_height, [pre 'cg_height']);
+    w.mass      = need(mass,      [pre 'mass']);
+    w.rpm_nom   = need(rpm,       [pre 'rpm']);
+    w.H_nom     = empty_to_nan(momentum);
+    w.Izz       = empty_to_nan(Izz);
+    if isnan(w.H_nom) && isnan(w.Izz)
+        error('Enter %smomentum or %sIzz in section 1 (one of the two is needed).', pre, pre);
+    end
+    w.Us        = empty_to_nan(Us);   w.Us_unit = Us_unit;
+    w.Ud        = empty_to_nan(Ud);   w.Ud_unit = Ud_unit;
+    w.Irr       = empty_to_nan(Irr);
+    w.e_cg_mm   = empty_to_nan(cg_offset_mm);
+    w.tilt_deg  = empty_to_nan(tilt_deg);
+    if isnan(w.Us) && isnan(w.e_cg_mm)
+        error('Enter %sstatic_imbalance (or %scg_offset_mm) in section 1.', pre, pre);
+    end
+    if isnan(w.Ud) && isnan(w.tilt_deg)
+        error('Enter %sdynamic_imbalance (or %stilt_deg together with %sIrr) in section 1.', pre, pre, pre);
+    end
+    w.phase_Ud  = imbalance_phase;
+    w.harmonics = harmonics;
+    w.C_ax      = axial_coeff;
+    w.f_rock = f_rock;   w.zeta_rock = z_rock;
+    w.f_ax   = f_ax;     w.zeta_ax   = z_ax;
+    w.f_rad  = f_rad;    w.zeta_rad  = z_rad;
+end
+
+function v = need(v, name)
+% Stop with a clear message if a required input was left empty.
+    if isempty(v) || any(isnan(v(:)))
+        error('Input  %s  is empty. Enter a value for it in section 1 (USER INPUTS).', name);
+    end
+    v = v(:);
+    if numel(v) == 1, v = v(1); end
+end
+
+function v = empty_to_nan(v)
+% Optional input: an empty [ ] means "not given".
+    if isempty(v), v = NaN; end
 end
 
 function a = combine_amp(A, method)
