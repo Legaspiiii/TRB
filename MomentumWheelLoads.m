@@ -28,7 +28,8 @@
 %
 %  QUICK START
 %    1. Edit section 1 "USER INPUTS" only.  Follow STEP 1 to STEP 5 and
-%       fill in every  [ ]  .  Units are written on every line.  Anything
+%       fill in every blank:  [ ] takes one number,  [ ; ; ] takes x; y; z.
+%       Units are written on every line.  Anything
 %       marked optional can stay NaN; the script then uses a rigid /
 %       conservative fallback and lists it under "Notes and assumptions".
 %       If a required value is left empty the script stops and names it.
@@ -129,8 +130,11 @@ clear; clc; close all;
 %   STEP 4  optional data              (leave as is if you don't have it)
 %   STEP 5  analysis settings
 %
-%   Fill in every line that shows  [ ]  .  The script stops and tells you
-%   which one is missing if you leave a required value empty.
+%   Fill in every blank.  The blank shows the shape of what goes in it:
+%        [ ]        one number            e.g.  1.5
+%        [ ; ; ]    three numbers x; y; z  e.g.  [-0.25; 0; 0]
+%   The script stops and tells you which one is missing (or has the wrong
+%   shape) if you leave a required value empty.
 %   Vectors are [x; y; z] in the structure frame.  Units are in brackets.
 
 %% ---- STEP 1: reference point -------------------------------------------------
@@ -141,7 +145,7 @@ reference_point = [0; 0; 0];                  % [m]
 %% ---- STEP 2: WHEEL 1, required --------------------------------------------------
 MW1_name              = 'MW-1';
 %  position and orientation (drawing)
-MW1_position          = [ ];                  % [m]  [x;y;z] centre of the mounting
+MW1_position          = [ ; ; ];              % [m]  [x; y; z] centre of the mounting
                                               %      face, e.g. [-0.25; 0; 0] for a
                                               %      wheel 0.25 m left of centre
 MW1_spin_axis         = [-1; 0; 0];           % [-]  direction of the wheel's angular
@@ -164,7 +168,7 @@ MW1_dynamic_imbalance = [ ];    MW1_dynamic_unit = 'g*cm^2';
 
 %% ---- STEP 3: WHEEL 2, required --------------------------------------------------
 MW2_name              = 'MW-2';
-MW2_position          = [ ];                  % [m]  e.g. [0.25; 0; 0], right of centre
+MW2_position          = [ ; ; ];              % [m]  [x; y; z] e.g. [0.25; 0; 0]
 MW2_spin_axis         = [-1; 0; 0];           % [-]  same as wheel 1 (spins the same way)
 MW2_cg_height         = [ ];                  % [m]
 MW2_mass              = [ ];                  % [kg]
@@ -255,8 +259,8 @@ wheel(2) = make_wheel('MW2_', MW2_name, MW2_position, MW2_spin_axis, MW2_cg_heig
     MW2_static_imbalance, MW2_static_unit, MW2_dynamic_imbalance, MW2_dynamic_unit, ...
     MW2_Irr, MW2_cg_offset_mm, MW2_tilt_deg, MW2_imbalance_phase, MW2_harmonics, MW2_axial_coeff, ...
     MW2_rock_freq, MW2_rock_damp, MW2_axial_freq, MW2_axial_damp, MW2_radial_freq, MW2_radial_damp);
-P_ref        = need(reference_point, 'reference_point');
-m_struct     = need(assembly_mass, 'assembly_mass');
+P_ref        = need(reference_point, 'reference_point', 3);
+m_struct     = need(assembly_mass, 'assembly_mass', 1);
 omega_base   = base_rate(:);   alpha_spin = spin_accel;   a_base = base_accel(:);
 H_other      = arm_momentum(:);
 sc_modes_Hz  = structure_modes_Hz;   t_end = time_length;   fs = sample_rate;
@@ -819,11 +823,11 @@ function w = make_wheel(pre, name, position, spin_axis, cg_height, mass, rpm, ..
 % required value has been entered.  pre is 'MW1_' or 'MW2_' for messages.
     w = struct();
     w.name      = name;
-    w.r_mount   = need(position,  [pre 'position']);
-    w.spin_axis = need(spin_axis, [pre 'spin_axis']);
-    w.L_cg      = need(cg_height, [pre 'cg_height']);
-    w.mass      = need(mass,      [pre 'mass']);
-    w.rpm_nom   = need(rpm,       [pre 'rpm']);
+    w.r_mount   = need(position,  [pre 'position'],  3);
+    w.spin_axis = need(spin_axis, [pre 'spin_axis'], 3);
+    w.L_cg      = need(cg_height, [pre 'cg_height'], 1);
+    w.mass      = need(mass,      [pre 'mass'],      1);
+    w.rpm_nom   = need(rpm,       [pre 'rpm'],       1);
     w.H_nom     = empty_to_nan(momentum);
     w.Izz       = empty_to_nan(Izz);
     if isnan(w.H_nom) && isnan(w.Izz)
@@ -848,13 +852,18 @@ function w = make_wheel(pre, name, position, spin_axis, cg_height, mass, rpm, ..
     w.f_rad  = f_rad;    w.zeta_rad  = z_rad;
 end
 
-function v = need(v, name)
-% Stop with a clear message if a required input was left empty.
+function v = need(v, name, n)
+% Stop with a clear message if a required input was left empty or has the
+% wrong shape.  n = number of values expected (1 = single number, 3 = x;y;z).
+    if nargin < 3, n = 1; end
+    if n == 3, shape = 'three numbers [x; y; z]'; else, shape = 'one number'; end
     if isempty(v) || any(isnan(v(:)))
-        error('Input  %s  is empty. Enter a value for it in section 1 (USER INPUTS).', name);
+        error('Input  %s  is empty. Enter %s for it in section 1 (USER INPUTS).', name, shape);
+    end
+    if numel(v) ~= n
+        error('Input  %s  has %d value(s) but needs %s.', name, numel(v), shape);
     end
     v = v(:);
-    if numel(v) == 1, v = v(1); end
 end
 
 function v = empty_to_nan(v)
