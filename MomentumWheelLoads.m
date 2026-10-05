@@ -71,6 +71,25 @@
 %    - The relative phase of the two wheels is unknown.  'worst' adds the
 %      amplitudes, 'rss' root-sum-squares them (the SDO approach).
 %
+%  THE LAYOUT THE EXAMPLE INPUTS DESCRIBE
+%
+%        MW-1                    ARM                     MW-2
+%      +------+              (spins about x)           +------+
+%      | wheel|   bearing    ====|=|====    bearing    | wheel|
+%      |  <-- |------------------+-+--------------------| <--  |-----> x
+%      +------+                  |                      +------+
+%        x = -d           x = 0 (P_ref)                  x = +d
+%
+%     - the shaft axis is the structure x axis
+%     - the arm spins about +x; the wheels spin about -x (opposite
+%       sense) so that their stored momentum cancels the arm's
+%     - the wheels sit at x = -d and x = +d, the arm at x = 0
+%     - loads are reduced to the shaft centre.  Move P_ref to a bearing
+%       location to get the loads at that bearing instead.
+%     Only the wheels are modelled.  The arm enters only through
+%     H_other (its momentum, for the momentum balance printout) and,
+%     if the whole shaft is ever slewed, through omega_base.
+%
 %  MATLAB R2016b or newer.  (Under GNU Octave move the LOCAL FUNCTIONS
 %  block to the top of the file, right after a line containing only "1;",
 %  because Octave needs script-local functions defined before use.)
@@ -83,14 +102,18 @@ clear; clc; close all;
 %  >>>>>  ALL NUMBERS BELOW ARE EXAMPLE VALUES.  REPLACE WITH YOUR OWN.  <<<<<
 
 % ---- 1a. Reference point --------------------------------------------------
-%  Loads are reduced to this point (structure frame, metres).  Typical
-%  choices: the structure CG, or the FE node of the wheel bracket.
+%  Loads are reduced to this point (structure frame, metres).  Here: the
+%  shaft centre where the arm sits.  Put a bearing position here to get
+%  the loads at that bearing.
 P_ref = [0; 0; 0];                          % [m]
 
 % ---- 1b. Motion of the structure the wheels are bolted to --------------------
-%  If the wheels ride on the arm, put the ARM's angular rate here.  Zero if
-%  the mounting structure is not rotating.  Structure frame.
-omega_base = [0; 0; 0];                     % [rad/s]   e.g. [0;0;-0.10]
+%  Angular rate of the structure that carries the wheel bearings.  Zero
+%  when the shaft axis is fixed in space (the arm spinning ABOUT the shaft
+%  does not count).  Non-zero only if the whole shaft/rig is slewed, e.g.
+%  [0;0;0.10] for the shaft axis turning at 0.1 rad/s about z: that gives
+%  the gyroscopic torque the wheels put into the bearings.
+omega_base = [0; 0; 0];                     % [rad/s]
 alpha_spin = 0;                             % [rad/s^2] wheel spin-up (+) or
                                             %           spin-down (-) rate.
                                             %           0 at steady speed.
@@ -98,19 +121,24 @@ a_base     = [0; 0; 0];                     % [m/s^2]   quasi-static base
                                             %           acceleration. 0 on orbit;
                                             %           e.g. [0;0;9.81*8] for an
                                             %           8 g launch case.
-H_other    = [0; 0; 0];                     % [N*m*s]   OPTIONAL momentum of
-                                            %           anything else (the arm)
-                                            %           to show the net with the
-                                            %           wheels. 0 to ignore.
+H_other    = [0; 0; 0];                     % [N*m*s]   OPTIONAL momentum of the
+                                            %           ARM, to print the net
+                                            %           momentum of arm + wheels.
+                                            %           = I_arm * (3000*2*pi/60)
+                                            %           along +x. 0 to ignore.
 
 % ---- 1c. WHEEL 1 -----------------------------------------------------------------
 w = struct();
 w.name       = 'MW-1';
 % --- geometry (structure frame) ---
-w.r_mount    = [ 0.250; 0.150; 0.050];      % [m]  centre of the mounting plane
-w.spin_axis  = [ 0; 0; 1];                  % [-]  angular-momentum direction
+w.r_mount    = [-0.250; 0; 0];              % [m]  centre of the mounting plane:
+                                            %      left end of the shaft
+w.spin_axis  = [-1; 0; 0];                  % [-]  angular-momentum direction:
+                                            %      -x, opposite to the arm (+x)
 w.L_cg       = 0.030;                       % [m]  rotor CG height above the
                                             %      mounting plane, along spin_axis
+                                            %      (0 if r_mount is already the
+                                            %      rotor CG)
 % --- mass and inertia ---
 w.mass       = 1.50;                        % [kg]      rotor (spinning part)
 w.H_nom      = 1.00;                        % [N*m*s]   angular momentum at
@@ -160,11 +188,11 @@ wheel(1) = w;
 
 % ---- 1d. WHEEL 2 -----------------------------------------------------------------
 %  Start from a copy of wheel 1 and overwrite what differs.  Spins the same
-%  way as wheel 1 -> same spin_axis.
+%  way as wheel 1 -> same spin_axis.  Sits at the right end of the shaft.
 w            = wheel(1);
 w.name       = 'MW-2';
-w.r_mount    = [-0.250; 0.150; 0.050];      % [m]
-w.spin_axis  = [ 0; 0; 1];                  % same direction as MW-1
+w.r_mount    = [ 0.250; 0; 0];              % [m]  right end of the shaft
+w.spin_axis  = [-1; 0; 0];                  % same direction as MW-1
 w.rpm_nom    = 6000;                        % [rpm]
 wheel(2) = w;
 clear w
