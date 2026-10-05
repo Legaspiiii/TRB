@@ -338,6 +338,9 @@ if bear_on
     [nom.RA, nom.RB, nom.Tmotor] = bearing_split(nom.F, nom.M, arm.s, xa, xb, axial_to);
     tolT = 1e-9 * max(abs([nom.F(:); nom.M(:)]));
     nom.Tmotor(abs(nom.Tmotor) < tolT) = 0;
+    nom.Tmotor_mean = mean(nom.Tmotor);
+    if abs(nom.Tmotor_mean) < 1e-9*max(abs(nom.Tmotor)), nom.Tmotor_mean = 0; end
+    nom.Tmotor_peak = max(abs(nom.Tmotor));
     nom.RA_rad_peak = max(vnorm(nom.RA - arm.s*(arm.s.'*nom.RA)));
     nom.RB_rad_peak = max(vnorm(nom.RB - arm.s*(arm.s.'*nom.RB)));
     nom.RA_ax_peak  = max(abs(arm.s.'*nom.RA));
@@ -416,7 +419,8 @@ if bear_on
 fprintf('--- Bearing loads (A at %g m, B at %g m along the shaft, axial on %s) ---\n', xa, xb, axial_to);
 fprintf('   bearing A: peak radial %.4g N, peak axial %.4g N\n', nom.RA_rad_peak, nom.RA_ax_peak);
 fprintf('   bearing B: peak radial %.4g N, peak axial %.4g N\n', nom.RB_rad_peak, nom.RB_ax_peak);
-fprintf('   torque about the shaft axis (to the drive / motor mount): steady %.4g N*m\n\n', mean(nom.Tmotor));
+fprintf('   torque about the shaft axis (to the drive / motor mount): steady %.4g N*m, peak %.4g N*m\n\n', ...
+    nom.Tmotor_mean, nom.Tmotor_peak);
 end
 
 fprintf('--- Drive torque and drag ------------------------------------------\n');
@@ -685,7 +689,8 @@ function print_summary(fid, S, nom, root, bear_on, m_struct)
         fprintf(fid, ' BEARINGS (peak over one revolution):\n');
         fprintf(fid, '     bearing A: radial %10.4g N   axial %10.4g N\n', nom.RA_rad_peak, nom.RA_ax_peak);
         fprintf(fid, '     bearing B: radial %10.4g N   axial %10.4g N\n', nom.RB_rad_peak, nom.RB_ax_peak);
-        fprintf(fid, '     drive torque about shaft: %10.4g N*m\n', mean(nom.Tmotor));
+        fprintf(fid, '     drive torque about shaft: steady %10.4g N*m, peak %10.4g N*m\n', ...
+            nom.Tmotor_mean, nom.Tmotor_peak);
         fprintf(fid, '\n');
     end
     fprintf(fid, ' ACCELERATION of the %g kg assembly (1x): lateral %.4g g, axial %.4g g\n', ...
