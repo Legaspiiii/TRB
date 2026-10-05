@@ -48,6 +48,14 @@
 %    C. Speed sweep      : how B changes with speed, and the Campbell
 %                          diagram for resonance crossings.
 %    D. Time history     : B written out in time with both wheels running.
+%    E. Acceleration     : lateral and axial force divided by the mass of
+%                          the assembly, plotted against frequency
+%                          (rigid-body estimate, no flexible modes).
+%    SUMMARY             : printed LAST and saved to
+%                          MomentumWheelLoads_summary.txt.  These are the
+%                          numbers to quote when someone asks for "the
+%                          loads".  Every value says what it is, where it
+%                          acts and in which units.
 %    Add A and B for a combined design load.
 %
 %  WHAT YOU NEED FROM THE WHEEL DATASHEET
@@ -230,8 +238,14 @@ t_end          = 0.05;      % [s]   time-history length at nominal speed
 fs             = 20e3;      % [Hz]  time-history sample rate
 phase_wheel2   = 0;         % [rad] phase of wheel 2 relative to wheel 1,
                             %       time history only (unknown in reality)
+m_struct       = 10.0;      % [kg]  mass of the whole assembly the wheel
+                            %       loads shake (shaft + arm + wheels).
+                            %       Used for the acceleration plot:
+                            %       a = F / m_struct  (rigid body)
+accel_limit_g  = NaN;       % [g]   OPTIONAL acceleration limit to draw on
+                            %       the acceleration plot, e.g. 0.05
 makePlots      = true;      % figures on/off
-saveOutputs    = true;      % write .mat and .csv on/off
+saveOutputs    = true;      % write .mat, .csv and summary .txt on/off
 
 %% ========================================================================
 %% 2. DERIVED QUANTITIES AND INPUT CHECKS
@@ -340,11 +354,23 @@ nominal.combined_rss   = combine_amp(amp_all, 'rss');
 %% ========================================================================
 %% 5. SPEED SWEEP  (same rpm applied to both wheels)
 %% ========================================================================
+%  5a. amplitude of each load component vs speed
+%  5b. lateral / axial force per harmonic vs excitation frequency, and the
+%      rigid-body acceleration  a = F / m_struct
+axial_dir = wheel(1).spin_axis;             % axial = shaft / spin axis
+hlist = [];
+for i = 1:nW, hlist = [hlist; wheel(i).harmonics(:,1)]; end %#ok<AGROW>
+hlist = unique(hlist);  nH = numel(hlist);
+
 nS = numel(rpm_sweep);
 sweep = struct();
 sweep.rpm = rpm_sweep(:);
 for i = 1:nW, sweep.wheel(i).amp = zeros(nS, 6); end
 sweep.combined = zeros(nS, 6);
+accel = struct('h', hlist, 'axial_dir', axial_dir, 'm_struct', m_struct);
+accel.freq_Hz = sweep.rpm * (hlist.' / 60);          % nS x nH
+accel.F_lat   = zeros(nS, nH);                        % peak lateral force  [N]
+accel.F_ax    = zeros(nS, nH);                        % peak axial force    [N]
 for k = 1:nS
     amp_k = [];
     for i = 1:nW
@@ -352,13 +378,37 @@ for k = 1:nS
         a = [abs(Fb); abs(Mb)];
         sweep.wheel(i).amp(k,:) = combine_amp(a, combine_method).';
         amp_k = [amp_k, a]; %#ok<AGROW>
+        for q = 1:size(wheel(i).harmonics, 1)
+            j = find(hlist == wheel(i).harmonics(q,1), 1);
+            [fl, fa] = lateral_axial_peak(Fb(:,q), axial_dir);
+            accel.F_lat(k,j) = combine_amp([accel.F_lat(k,j), fl], combine_method);
+            accel.F_ax(k,j)  = combine_amp([accel.F_ax(k,j),  fa], combine_method);
+        end
     end
     sweep.combined(k,:) = combine_amp(amp_k, combine_method).';
 end
+g0 = 9.80665;
+accel.a_lat_mps2 = accel.F_lat / m_struct;   accel.a_lat_g = accel.a_lat_mps2 / g0;
+accel.a_ax_mps2  = accel.F_ax  / m_struct;   accel.a_ax_g  = accel.a_ax_mps2  / g0;
 [~, kmax] = max(max(sweep.combined(:,1:3), [], 2));
 sweep.rpm_maxForce = rpm_sweep(kmax);
 [~, kmax] = max(max(sweep.combined(:,4:6), [], 2));
 sweep.rpm_maxMoment = rpm_sweep(kmax);
+
+% lateral / axial force and acceleration at nominal speed (for the summary)
+nominal.F_lat = struct('worst', 0, 'rss', 0);
+nominal.F_ax  = struct('worst', 0, 'rss', 0);
+for i = 1:nW
+    for q = 1:size(wheel(i).harmonics, 1)
+        [fl, fa] = lateral_axial_peak(nominal.wheel(i).F_phasor(:,q), axial_dir);
+        nominal.F_lat.worst = nominal.F_lat.worst + fl;
+        nominal.F_ax.worst  = nominal.F_ax.worst  + fa;
+        nominal.F_lat.rss   = sqrt(nominal.F_lat.rss^2 + fl^2);
+        nominal.F_ax.rss    = sqrt(nominal.F_ax.rss^2  + fa^2);
+    end
+end
+nominal.a_lat_g = struct('worst', nominal.F_lat.worst/m_struct/g0, 'rss', nominal.F_lat.rss/m_struct/g0);
+nominal.a_ax_g  = struct('worst', nominal.F_ax.worst /m_struct/g0, 'rss', nominal.F_ax.rss /m_struct/g0);
 
 %% ========================================================================
 %% 6. TIME HISTORY AT NOMINAL SPEED
@@ -453,6 +503,16 @@ fprintf('   peak |total| over %g s: ', t_end);
 for r = 1:6, fprintf('%s %.4g  ', strtok(lbl{r}), timeh.peak(r)); end
 fprintf('\n\n');
 
+fprintf('--- E. Rigid-body acceleration of the %g kg assembly at nominal speed ---\n', m_struct);
+fprintf('   lateral (perp. to shaft axis): force %.4g N -> %.4g g  (worst), %.4g N -> %.4g g (rss)\n', ...
+    nominal.F_lat.worst, nominal.a_lat_g.worst, nominal.F_lat.rss, nominal.a_lat_g.rss);
+fprintf('   axial   (along shaft axis)   : force %.4g N -> %.4g g  (worst), %.4g N -> %.4g g (rss)\n', ...
+    nominal.F_ax.worst, nominal.a_ax_g.worst, nominal.F_ax.rss, nominal.a_ax_g.rss);
+if nominal.F_ax.worst == 0
+fprintf('   (axial is zero because imbalance only produces radial loads; set C_ax if the vendor gives an axial force)\n');
+end
+fprintf('\n');
+
 fprintf('--- Notes and assumptions ----------------------------------------\n');
 for k = 1:numel(notes), fprintf('   * %s\n', notes{k}); end
 fprintf('   * Harmonic loads scale with speed^2; the 1x force and moment come from\n');
@@ -520,6 +580,41 @@ if makePlots
     xlabel('wheel speed [rpm]'); ylabel('frequency [Hz]');
     title('Campbell diagram: excitation lines vs. modes (crossings = resonance risk)');
 
+    % --- acceleration vs frequency ---
+    figure('Name','Rigid-body acceleration vs excitation frequency','NumberTitle','off');
+    ttl = {'LATERAL (perpendicular to shaft axis)', 'AXIAL (along shaft axis)'};
+    dat = {accel.a_lat_g, accel.a_ax_g};
+    for sp = 1:2
+        subplot(1,2,sp); hold on; grid on;
+        if max(dat{sp}(:)) <= 0
+            text(0.5, 0.5, {'no load in this direction', '(imbalance gives radial loads only;', 'set C_ax for a vendor axial force)'}, ...
+                'Units', 'normalized', 'HorizontalAlignment', 'center');
+            xlabel('excitation frequency [Hz]'); ylabel('peak acceleration [g]'); title(ttl{sp});
+            continue
+        end
+        for j = 1:nH
+            f = accel.freq_Hz(:,j);  y = dat{sp}(:,j);
+            plot(f(f>0), y(f>0), '-', 'LineWidth', 1.5, 'Color', cols(min(j,nW+1),:));
+        end
+        set(gca, 'XScale', 'log', 'YScale', 'log');
+        yl = ylim;
+        for i = 1:nW
+            fn = wheel(i).rpm_nom/60;
+            plot([fn fn], yl, '--', 'Color', [0.3 0.3 0.3]);
+            text(fn, yl(2), sprintf(' %s nominal', wheel(i).name), 'VerticalAlignment', 'top');
+        end
+        if ~isnan(accel_limit_g)
+            plot([min(accel.freq_Hz(accel.freq_Hz>0)) max(accel.freq_Hz(:))], [1 1]*accel_limit_g, 'r-', 'LineWidth', 1.2);
+            text(max(accel.freq_Hz(:)), accel_limit_g, ' limit', 'Color', 'r');
+        end
+        xlabel('excitation frequency [Hz]'); ylabel('peak acceleration [g]');
+        title(sprintf('%s\\n%s combination, m = %g kg', ttl{sp}, combine_method, m_struct));
+        if nH > 1
+            lg = cell(1,nH); for j = 1:nH, lg{j} = sprintf('%gx harmonic', hlist(j)); end
+            legend(lg, 'Location', 'northwest');
+        end
+    end
+
     % --- time history ---
     figure('Name','Time history at nominal speed (both wheels)','NumberTitle','off');
     for r = 1:6
@@ -535,11 +630,33 @@ end
 %% ========================================================================
 %% 9. SAVE
 %% ========================================================================
+summary = struct();
+summary.what            = 'Peak (0-to-peak) sinusoidal loads applied by the two momentum wheels on the structure at nominal speed';
+summary.point_m         = P_ref(:).';
+summary.frame           = 'structure frame [x y z]';
+summary.frequency_Hz    = [wheel.rpm_nom] / 60;
+summary.F_both_worst_N  = nominal.combined_worst(1:3).';
+summary.M_both_worst_Nm = nominal.combined_worst(4:6).';
+summary.F_both_rss_N    = nominal.combined_rss(1:3).';
+summary.M_both_rss_Nm   = nominal.combined_rss(4:6).';
+summary.F_lateral_worst_N = nominal.F_lat.worst;   summary.F_axial_worst_N = nominal.F_ax.worst;
+summary.a_lateral_worst_g = nominal.a_lat_g.worst; summary.a_axial_worst_g = nominal.a_ax_g.worst;
+summary.F_steady_N      = (steady.F_total + 0).';
+summary.M_steady_Nm     = (steady.M_total + 0).';
+for i = 1:nW
+    summary.wheel(i).name = wheel(i).name;
+    summary.wheel(i).F_N  = nominal.wheel(i).amp_combined(1:3).';
+    summary.wheel(i).M_Nm = nominal.wheel(i).amp_combined(4:6).';
+end
 results = struct('P_ref', P_ref, 'wheel', wheel, 'steady', steady, ...
-                 'nominal', nominal, 'sweep', sweep, 'time', timeh, ...
+                 'nominal', nominal, 'sweep', sweep, 'accel', accel, ...
+                 'time', timeh, 'summary', summary, ...
                  'combine_method', combine_method, 'notes', {notes});
 if saveOutputs
     save('MomentumWheelLoads_results.mat', 'results');
+    fid = fopen('MomentumWheelLoads_summary.txt', 'w');
+    print_summary(fid, summary, wheel, combine_method, m_struct, axial_dir);
+    fclose(fid);
     fid = fopen('MomentumWheelLoads_sweep.csv', 'w');
     fprintf(fid, 'rpm');
     for i = 1:nW
@@ -554,8 +671,13 @@ if saveOutputs
         fprintf(fid, '\n');
     end
     fclose(fid);
-    fprintf('Saved MomentumWheelLoads_results.mat and MomentumWheelLoads_sweep.csv\n');
+    fprintf('Saved MomentumWheelLoads_results.mat, MomentumWheelLoads_sweep.csv, MomentumWheelLoads_summary.txt\n');
 end
+
+%% ========================================================================
+%% 10. SUMMARY  -  printed last so it is the first thing you see on screen
+%% ========================================================================
+print_summary(1, summary, wheel, combine_method, m_struct, axial_dir);
 
 %% ========================================================================
 %% LOCAL FUNCTIONS
@@ -619,6 +741,60 @@ function [f_nut, f_prec] = whirl_freqs(w, Om)
     d = sqrt((Om*w.Izz)^2 + 4*k*w.Irr);
     f_nut  = ( Om*w.Izz + d) / (2*w.Irr) / (2*pi);
     f_prec = (-Om*w.Izz + d) / (2*w.Irr) / (2*pi);
+end
+
+function [f_lat, f_ax] = lateral_axial_peak(p, axial_dir)
+% Peak axial and peak lateral force of a 3-vector phasor p (load =
+% Re(p e^{iwt})).  Lateral peak = max over time of |lateral force vector|
+% = largest singular value of [Re(p_lat) Im(p_lat)], which is exact for a
+% rotating (whirling) load as well as for a straight-line oscillation.
+    ax   = axial_dir(:) / norm(axial_dir);
+    pa   = ax.' * p(:);
+    f_ax = abs(pa);
+    pl   = p(:) - pa * ax;
+    f_lat = norm([real(pl), imag(pl)]);
+end
+
+function print_summary(fid, S, wheel, method, m_struct, axial_dir)
+% The block of numbers to quote.  fid = 1 prints to screen.
+    nW = numel(wheel);
+    L = '#####################################################################';
+    fprintf(fid, '\n%s\n', L);
+    fprintf(fid, '#   SUMMARY  -  THE NUMBERS TO QUOTE                                #\n');
+    fprintf(fid, '%s\n', L);
+    fprintf(fid, ' WHAT      : %s\n', S.what);
+    fprintf(fid, ' WHERE     : at point [%g %g %g] m, %s\n', S.point_m, S.frame);
+    fprintf(fid, ' SPEED     :');
+    for i = 1:nW, fprintf(fid, ' %s %g rpm (%.4g Hz)', wheel(i).name, wheel(i).rpm_nom, wheel(i).rpm_nom/60); end
+    fprintf(fid, '\n');
+    fprintf(fid, ' SIGN/TYPE : peak amplitude of a sinusoid (use +/- this value)\n');
+    fprintf(fid, '\n');
+    fprintf(fid, ' >>> BOTH WHEELS TOGETHER, WORST CASE (amplitudes added) <<<   <- quote these\n');
+    fprintf(fid, '     Fx = %10.4g N        Mx = %10.4g N*m\n', S.F_both_worst_N(1), S.M_both_worst_Nm(1));
+    fprintf(fid, '     Fy = %10.4g N        My = %10.4g N*m\n', S.F_both_worst_N(2), S.M_both_worst_Nm(2));
+    fprintf(fid, '     Fz = %10.4g N        Mz = %10.4g N*m\n', S.F_both_worst_N(3), S.M_both_worst_Nm(3));
+    fprintf(fid, '\n');
+    fprintf(fid, '     both wheels, RSS (random phase, less conservative):\n');
+    fprintf(fid, '     Fx = %10.4g N        Mx = %10.4g N*m\n', S.F_both_rss_N(1), S.M_both_rss_Nm(1));
+    fprintf(fid, '     Fy = %10.4g N        My = %10.4g N*m\n', S.F_both_rss_N(2), S.M_both_rss_Nm(2));
+    fprintf(fid, '     Fz = %10.4g N        Mz = %10.4g N*m\n', S.F_both_rss_N(3), S.M_both_rss_Nm(3));
+    fprintf(fid, '\n');
+    fprintf(fid, ' LATERAL / AXIAL  (shaft axis = [%g %g %g]), worst case, both wheels:\n', axial_dir);
+    fprintf(fid, '     lateral force = %10.4g N   ->  %.4g g on the %g kg assembly\n', S.F_lateral_worst_N, S.a_lateral_worst_g, m_struct);
+    fprintf(fid, '     axial   force = %10.4g N   ->  %.4g g on the %g kg assembly\n', S.F_axial_worst_N, S.a_axial_worst_g, m_struct);
+    fprintf(fid, '\n');
+    fprintf(fid, ' EACH WHEEL ALONE (its harmonics combined with ''%s''):\n', method);
+    for i = 1:nW
+        fprintf(fid, '     %-6s F = [%10.4g %10.4g %10.4g] N   M = [%10.4g %10.4g %10.4g] N*m\n', ...
+            S.wheel(i).name, S.wheel(i).F_N, S.wheel(i).M_Nm);
+    end
+    fprintf(fid, '\n');
+    fprintf(fid, ' STEADY (constant) LOADS, add to the above:\n');
+    fprintf(fid, '     F = [%10.4g %10.4g %10.4g] N   M = [%10.4g %10.4g %10.4g] N*m', S.F_steady_N, S.M_steady_Nm);
+    if ~any(S.F_steady_N) && ~any(S.M_steady_Nm)
+        fprintf(fid, '   (all zero: fixed shaft axis, constant speed, no base acceleration)');
+    end
+    fprintf(fid, '\n%s\n', L);
 end
 
 function a = combine_amp(A, method)
