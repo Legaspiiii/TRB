@@ -130,16 +130,7 @@ points_per_cycle       = 20;     % [-]   time samples per cycle of the fastest v
 max_number_of_samples  = 500000; % [-]   cap on time samples (keeps memory reasonable)
 
 % ------------------------------------------------------------------------
-% 1G. SENSITIVITY SWEEP RANGES  (used for the tornado chart, plot 9)
-% ------------------------------------------------------------------------
-sweep_eccentricity_low  = 0.5;    sweep_eccentricity_high = 1.5;   % [x baseline]
-sweep_tilt_low          = 0.5;    sweep_tilt_high         = 2.0;   % [x baseline]
-sweep_runout_low        = 0.0;    sweep_runout_high       = 2.0;   % [x baseline]
-sweep_kick_ratio_low    = 0.001;  sweep_kick_ratio_high   = 0.10;  % [absolute ratio]
-sweep_speed_low         = 0.9;    sweep_speed_high        = 1.1;   % [x baseline]
-
-% ------------------------------------------------------------------------
-% 1H. PLOT SWITCHES  (true = make the plot, false = skip it)
+% 1G. PLOT SWITCHES  (true = make the plot, false = skip it)
 % ------------------------------------------------------------------------
 make_plot_1_speed_vs_force    = true;
 make_plot_2_speed_vs_torque   = true;
@@ -147,9 +138,7 @@ make_plot_3_spectrum          = true;
 make_plot_4_campbell          = true;
 make_plot_5_waterfall         = true;
 make_plot_6_loads_over_time   = true;
-make_plot_7_contributions     = true;
-make_plot_8_momentum          = true;
-make_plot_9_tornado           = true;
+make_plot_7_momentum          = true;
 
 save_plots  = true;                        % save every plot as a PNG file
 plot_folder = 'Induced_Vibration_Plots';   % folder the PNG files go into
@@ -191,6 +180,9 @@ part_colors  = [0.00 0.45 0.74;
                 0.85 0.33 0.10;
                 0.47 0.67 0.19];
 total_color  = [0 0 0];
+
+% Line style per part, so two parts with identical values never hide each other
+part_line_styles = {'-', '-.', '--'};
 
 
 %% ========================================================================
@@ -253,7 +245,7 @@ kick_frequency_hz = kick_harmonic .* (part_max_speed_hz');   % at max speed [Hz]
 %  SECTION 4: PEAK LOAD FORMULAS  (worst case and random phase)
 %  ------------------------------------------------------------------------
 %  These small formulas give the peak loads at constant speed. They are
-%  used for the summary, the speed plots and the tornado chart.
+%  used for the summary, the speed plots and the sanity checks.
 %  Inputs are scale factors: 1 = baseline value.
 %  ========================================================================
 
@@ -542,36 +534,7 @@ end
 
 
 %% ========================================================================
-%  SECTION 12: SENSITIVITY SWEEP  (tornado chart data)
-%  ========================================================================
-
-sweep_names = {sprintf('Eccentricity (x%.1f to x%.1f)', sweep_eccentricity_low, sweep_eccentricity_high), ...
-               sprintf('Tilt (x%.1f to x%.1f)',         sweep_tilt_low,         sweep_tilt_high), ...
-               sprintf('Bearing runout (x%.1f to x%.1f)', sweep_runout_low,     sweep_runout_high), ...
-               sprintf('Bearing kick ratio (%.1f%% to %.0f%%)', 100 * sweep_kick_ratio_low, 100 * sweep_kick_ratio_high), ...
-               sprintf('Max speed (x%.1f to x%.1f)',    sweep_speed_low,        sweep_speed_high)};
-
-% Each row: [low value, high value] of the worst-case total
-sweep_force_N = [ ...
-    calc_worst_force_N(sweep_eccentricity_low, 1, bearing_kick_ratio, 1),  calc_worst_force_N(sweep_eccentricity_high, 1, bearing_kick_ratio, 1);
-    worst_force_N,                                                         worst_force_N;
-    calc_worst_force_N(1, sweep_runout_low, bearing_kick_ratio, 1),        calc_worst_force_N(1, sweep_runout_high, bearing_kick_ratio, 1);
-    calc_worst_force_N(1, 1, sweep_kick_ratio_low, 1),                     calc_worst_force_N(1, 1, sweep_kick_ratio_high, 1);
-    calc_worst_force_N(1, 1, bearing_kick_ratio, sweep_speed_low),         calc_worst_force_N(1, 1, bearing_kick_ratio, sweep_speed_high)];
-
-sweep_moment_Nm = [ ...
-    calc_worst_moment_Nm(sweep_eccentricity_low, 1, 1, bearing_kick_ratio, 1), calc_worst_moment_Nm(sweep_eccentricity_high, 1, 1, bearing_kick_ratio, 1);
-    calc_worst_moment_Nm(1, sweep_tilt_low, 1, bearing_kick_ratio, 1),         calc_worst_moment_Nm(1, sweep_tilt_high, 1, bearing_kick_ratio, 1);
-    calc_worst_moment_Nm(1, 1, sweep_runout_low, bearing_kick_ratio, 1),       calc_worst_moment_Nm(1, 1, sweep_runout_high, bearing_kick_ratio, 1);
-    calc_worst_moment_Nm(1, 1, 1, sweep_kick_ratio_low, 1),                    calc_worst_moment_Nm(1, 1, 1, sweep_kick_ratio_high, 1);
-    calc_worst_moment_Nm(1, 1, 1, bearing_kick_ratio, sweep_speed_low),        calc_worst_moment_Nm(1, 1, 1, bearing_kick_ratio, sweep_speed_high)];
-
-sweep_force_percent  = 100 * (sweep_force_N / worst_force_N - 1);
-sweep_moment_percent = 100 * (sweep_moment_Nm / worst_moment_Nm - 1);
-
-
-%% ========================================================================
-%  SECTION 13: SANITY CHECKS  (Equations 14.1 to 14.5)
+%  SECTION 12: SANITY CHECKS  (Equations 14.1 to 14.5)
 %  ========================================================================
 
 check_names  = {};
@@ -603,7 +566,7 @@ end
 
 
 %% ========================================================================
-%  SECTION 14: PRINTED SUMMARY
+%  SECTION 13: PRINTED SUMMARY
 %  ========================================================================
 
 line_text = repmat('=', 1, 78);
@@ -705,7 +668,7 @@ fprintf('%s\n', line_text);
 
 
 %% ========================================================================
-%  SECTION 15: PLOTS
+%  SECTION 14: PLOTS
 %  ========================================================================
 
 if save_plots && ~exist(plot_folder, 'dir')
@@ -725,7 +688,7 @@ if make_plot_1_speed_vs_force
     for p = 1:number_of_parts
         part_speed_rpm = speed_axis_scale * part_max_speed_rpm(p);
         part_force_N   = static_imbalance_kgm(p) * (part_speed_rpm * 2 * pi / 60) .^ 2;
-        part_line_handles(p) = plot(part_speed_rpm, part_force_N, 'LineWidth', 2, 'Color', part_colors(p, :));
+        part_line_handles(p) = plot(part_speed_rpm, part_force_N, part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
         plot(part_max_speed_rpm(p), peak_shake_N(p), 'o', 'MarkerSize', 8, ...
              'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
         text(part_max_speed_rpm(p), peak_shake_N(p), sprintf('  %.3g N', peak_shake_N(p)), 'FontSize', 9);
@@ -746,7 +709,7 @@ if make_plot_1_speed_vs_force
         part_curves(:, i) = calc_shake_N(1, 1, speed_axis_scale(i))';
     end
     for p = 1:number_of_parts
-        plot(arm_axis_rpm, part_curves(p, :), 'LineWidth', 1.5, 'Color', part_colors(p, :));
+        plot(arm_axis_rpm, part_curves(p, :), part_line_styles{p}, 'LineWidth', 1.5, 'Color', part_colors(p, :));
     end
     plot(arm_axis_rpm, worst_curve, 'k-',  'LineWidth', 2.5);
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
@@ -775,7 +738,7 @@ if make_plot_2_speed_vs_torque
     for p = 1:number_of_parts
         part_speed_rpm = speed_axis_scale * part_max_speed_rpm(p);
         part_rock_Nm   = dynamic_imbalance_kgm2(p) * (part_speed_rpm * 2 * pi / 60) .^ 2;
-        part_line_handles(p) = plot(part_speed_rpm, part_rock_Nm, 'LineWidth', 2, 'Color', part_colors(p, :));
+        part_line_handles(p) = plot(part_speed_rpm, part_rock_Nm, part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
         plot(part_max_speed_rpm(p), peak_rock_Nm(p), 'o', 'MarkerSize', 8, ...
              'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
         text(part_max_speed_rpm(p), peak_rock_Nm(p), sprintf('  %.3g N*m', peak_rock_Nm(p)), 'FontSize', 9);
@@ -795,14 +758,14 @@ if make_plot_2_speed_vs_torque
         part_curves(:, i) = (calc_rock_Nm(1, 1, speed_axis_scale(i)) + abs(cm_distance_m) .* calc_shake_N(1, 1, speed_axis_scale(i)))';
     end
     for p = 1:number_of_parts
-        plot(arm_axis_rpm, part_curves(p, :), 'LineWidth', 1.5, 'Color', part_colors(p, :));
+        plot(arm_axis_rpm, part_curves(p, :), part_line_styles{p}, 'LineWidth', 1.5, 'Color', part_colors(p, :));
     end
     plot(arm_axis_rpm, worst_curve, 'k-',  'LineWidth', 2.5);
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
     plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
     text(part_max_speed_rpm(arm_index), worst_moment_Nm, sprintf('  worst %.3g N*m', worst_moment_Nm), 'FontSize', 9);
     xlabel('Arm speed [RPM]'); ylabel('Moment Mx / My at reference [N*m]');
-    title(sprintf('(b) System moment vs arm speed   (ramp twist Mz peak: %.3g N*m)', simulated_peak_twist_Nm));
+    title(sprintf('(b) System moment vs arm speed   (net ramp twist Mz peak: %.3g N*m)', simulated_peak_twist_Nm));
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
 
     if save_plots
@@ -821,7 +784,8 @@ if make_plot_3_spectrum
         figure_handle = figure('Name', 'Plot 3 - Spectrum', 'Color', 'w', 'Position', [110 110 1200 750]);
         n = numel(hold_samples);
         window = 0.5 - 0.5 * cos(2 * pi * (0:n-1) / (n - 1));   % Hann window
-        frequency_hz = (0:floor(n / 2)) * sample_rate_hz / n;
+        fft_length = 8 * 2 ^ nextpow2(n);                       % zero padding: peaks read at their true height
+        frequency_hz = (0:fft_length / 2) * sample_rate_hz / fft_length;
 
         signals      = {total_force_x_N(hold_samples), total_moment_x_Nm(hold_samples)};
         signal_names = {'Total force Fx [N]', 'Total moment Mx [N*m]'};
@@ -829,8 +793,8 @@ if make_plot_3_spectrum
         for s = 1:2
             subplot(2, 1, s); hold on; grid on; box on;
             signal = signals{s} - mean(signals{s});
-            spectrum = fft(signal .* window);
-            amplitude = 2 * abs(spectrum(1:floor(n / 2) + 1)) / sum(window);
+            spectrum = fft(signal .* window, fft_length);
+            amplitude = 2 * abs(spectrum(1:fft_length / 2 + 1)) / sum(window);
             floor_level = max(amplitude) * 1e-6;
             semilogy(frequency_hz, max(amplitude, floor_level), 'k', 'LineWidth', 1);
             set(gca, 'YScale', 'log');
@@ -842,8 +806,11 @@ if make_plot_3_spectrum
                 source_labels = [{'1x'}, kick_names];
                 for k = 1:numel(source_freqs)
                     [~, nearest] = min(abs(frequency_hz - source_freqs(k)));
-                    if any(labeled_frequencies == nearest)
-                        continue;
+                    search = max(1, nearest - 10):min(numel(amplitude), nearest + 10);
+                    [~, offset] = max(amplitude(search));
+                    nearest = search(offset);                  % snap to the top of the peak
+                    if any(abs(labeled_frequencies - nearest) <= 10) || amplitude(nearest) < 100 * floor_level
+                        continue;                              % already labeled, or no visible peak here
                     end
                     labeled_frequencies(end + 1) = nearest;
                     plot(frequency_hz(nearest), max(amplitude(nearest), floor_level), 'v', ...
@@ -918,7 +885,12 @@ if make_plot_4_campbell
         xlabel(sprintf('%s speed [RPM]', part_names{p}));
         ylabel('Frequency [Hz]');
         title(sprintf('%s  (x = crossing, dotted = +/-%.0f%% stiffness)', part_names{p}, 100 * stiffness_uncertainty));
-        legend(legend_handles, legend_labels, 'Location', 'northwest', 'FontSize', 7);
+        for m = 1:size(modes, 1)
+            if min(modes(m, :)) > y_top
+                legend_labels{m} = sprintf('%s (off chart, %.0f Hz)', legend_labels{m}, modes(m, 1));
+            end
+        end
+        legend(legend_handles, legend_labels, 'Location', 'east', 'FontSize', 7);
     end
 
     if save_plots
@@ -963,8 +935,10 @@ if make_plot_5_waterfall
         subplot(1, 2, s); hold on; grid on; box on;
         values = waterfall_values{s};
         keep = values > 0;
-        scatter(point_freq_hz(keep), point_speed_rpm(keep), 18, log10(values(keep)), 'filled');
+        log_values = log10(values(keep));
+        scatter(point_freq_hz(keep), point_speed_rpm(keep), 18, log_values, 'filled');
         colormap(jet);
+        caxis([min(log_values), max(log_values)]);
         color_bar = colorbar;
         ylabel(color_bar, waterfall_labels{s});
         plot([0 1.15 * fastest_frequency_hz * 1.2], [1 1] * part_max_speed_rpm(arm_index), 'k:', 'LineWidth', 1.5);
@@ -991,7 +965,7 @@ if make_plot_6_loads_over_time
     plot_index = 1:plot_step:number_of_samples;
 
     time_signals = {total_force_x_N, total_force_y_N, total_moment_x_Nm, total_moment_y_Nm, total_moment_z_Nm};
-    time_labels  = {'Fx [N]', 'Fy [N]', 'Mx [N*m]', 'My [N*m]', 'Mz twist [N*m]'};
+    time_labels  = {'Fx [N]', 'Fy [N]', 'Mx [N*m]', 'My [N*m]', 'Mz net twist [N*m]'};
 
     for s = 1:numel(time_signals)
         subplot(6, 1, s); hold on; grid on; box on;
@@ -1024,114 +998,33 @@ if make_plot_6_loads_over_time
 end
 
 % ------------------------------------------------------------------------
-% PLOT 7: CONTRIBUTIONS (who dominates)
+% PLOT 7: MOMENTUM CHECK
 % ------------------------------------------------------------------------
-if make_plot_7_contributions
-    figure_handle = figure('Name', 'Plot 7 - Contributions', 'Color', 'w', 'Position', [230 230 1200 500]);
-    bar_labels = [part_names, {'Total (worst)', 'Total (random)'}];
-
-    % Forces: [shake, bearing kicks, total]
-    force_data = zeros(number_of_parts + 2, 3);
-    force_data(1:number_of_parts, 1) = peak_shake_N';
-    force_data(1:number_of_parts, 2) = peak_kick_N';
-    force_data(number_of_parts + 1, 3) = worst_force_N;
-    force_data(number_of_parts + 2, 3) = rss_force_N;
-
-    subplot(1, 2, 1); hold on; grid on; box on;
-    bar_handles = bar(force_data, 'stacked');
-    set(bar_handles(1), 'FaceColor', [0.30 0.50 0.80]);
-    set(bar_handles(2), 'FaceColor', [0.95 0.70 0.20]);
-    set(bar_handles(3), 'FaceColor', [0.25 0.25 0.25]);
-    set(gca, 'XTick', 1:numel(bar_labels), 'XTickLabel', bar_labels);
-    ylabel('Peak force [N]');
-    title('Force contributions at max speed');
-    legend({'Shake (imbalance)', 'Bearing kicks', 'Total'}, 'Location', 'northwest');
-
-    % Moments: [rock, shake x distance, kicks x distance, total]
-    moment_data = zeros(number_of_parts + 2, 4);
-    moment_data(1:number_of_parts, 1) = peak_rock_Nm';
-    moment_data(1:number_of_parts, 2) = (abs(cm_distance_m) .* peak_shake_N)';
-    moment_data(1:number_of_parts, 3) = (abs(bearing_mid_distance_m) .* peak_kick_N)';
-    moment_data(number_of_parts + 1, 4) = worst_moment_Nm;
-    moment_data(number_of_parts + 2, 4) = rss_moment_Nm;
-
-    subplot(1, 2, 2); hold on; grid on; box on;
-    bar_handles = bar(moment_data, 'stacked');
-    set(bar_handles(1), 'FaceColor', [0.80 0.30 0.30]);
-    set(bar_handles(2), 'FaceColor', [0.30 0.50 0.80]);
-    set(bar_handles(3), 'FaceColor', [0.95 0.70 0.20]);
-    set(bar_handles(4), 'FaceColor', [0.25 0.25 0.25]);
-    set(gca, 'XTick', 1:numel(bar_labels), 'XTickLabel', bar_labels);
-    ylabel('Peak moment at reference [N*m]');
-    title('Moment contributions at max speed');
-    legend({'Rock (tilt)', 'Shake x distance', 'Kicks x distance', 'Total'}, 'Location', 'northwest');
-
-    if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_7_Contributions.png'), '-dpng', '-r150');
-    end
-end
-
-% ------------------------------------------------------------------------
-% PLOT 8: MOMENTUM CHECK
-% ------------------------------------------------------------------------
-if make_plot_8_momentum
-    figure_handle = figure('Name', 'Plot 8 - Momentum', 'Color', 'w', 'Position', [260 60 1100 750]);
+if make_plot_7_momentum
+    figure_handle = figure('Name', 'Plot 7 - Momentum', 'Color', 'w', 'Position', [260 60 1100 750]);
     plot_step = max(1, floor(number_of_samples / 20000));
     plot_index = 1:plot_step:number_of_samples;
 
     subplot(2, 1, 1); hold on; grid on; box on;
     for p = 1:number_of_parts
-        plot(time_s(plot_index), part_momentum_Nms(p, plot_index), 'LineWidth', 2, 'Color', part_colors(p, :));
+        plot(time_s(plot_index), part_momentum_Nms(p, plot_index), part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
     end
     plot(time_s(plot_index), net_momentum_Nms(plot_index), 'k--', 'LineWidth', 2.5);
     ylabel('Spin momentum [N*m*s]');
     title(sprintf('Momentum: net at max speed = %.3g N*m*s  (%.2f%% of the arm)', net_momentum_at_max_Nms, leftover_percent));
-    legend([part_names, {'Net (want ~0)'}], 'Location', 'northeast');
+    legend([part_names, {'Net (want about 0)'}], 'Location', 'northeast');
 
     subplot(2, 1, 2); hold on; grid on; box on;
     for p = 1:number_of_parts
-        plot(time_s(plot_index), twist_z_Nm(p, plot_index), 'LineWidth', 2, 'Color', part_colors(p, :));
+        plot(time_s(plot_index), twist_z_Nm(p, plot_index), part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
     end
     plot(time_s(plot_index), net_torque_Nm(plot_index), 'k--', 'LineWidth', 2.5);
     xlabel('Time [s]'); ylabel('Twist on structure [N*m]');
-    title('Ramp twist: each part and net (net should be ~0 if momentum is balanced)');
+    title('Ramp twist: each part and net (net should be about 0 if momentum is balanced)');
     legend([part_names, {'Net'}], 'Location', 'northeast');
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_8_Momentum.png'), '-dpng', '-r150');
-    end
-end
-
-% ------------------------------------------------------------------------
-% PLOT 9: TORNADO CHART (which assumption matters most)
-% ------------------------------------------------------------------------
-if make_plot_9_tornado
-    figure_handle = figure('Name', 'Plot 9 - Sensitivity', 'Color', 'w', 'Position', [290 290 1300 500]);
-    tornado_data   = {sweep_force_percent, sweep_moment_percent};
-    tornado_titles = {sprintf('Worst-case force (baseline %.3g N)', worst_force_N), ...
-                      sprintf('Worst-case moment (baseline %.3g N*m)', worst_moment_Nm)};
-
-    for s = 1:2
-        subplot(1, 2, s); hold on; grid on; box on;
-        data = tornado_data{s};
-        swing = max(abs(data), [], 2);
-        [~, order] = sort(swing, 'ascend');
-        data = data(order, :);
-        names = sweep_names(order);
-
-        bar_count = size(data, 1);
-        barh(1:bar_count, data(:, 1), 0.6, 'FaceColor', [0.30 0.50 0.80]);
-        barh(1:bar_count, data(:, 2), 0.6, 'FaceColor', [0.85 0.33 0.10]);
-        plot([0 0], [0.4 bar_count + 0.6], 'k-', 'LineWidth', 1.5);
-        set(gca, 'YTick', 1:bar_count, 'YTickLabel', names);
-        ylim([0.4 bar_count + 0.6]);
-        xlabel('Change from baseline [%]');
-        title(tornado_titles{s});
-        legend({'Low value', 'High value'}, 'Location', 'southeast');
-    end
-
-    if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_9_Tornado.png'), '-dpng', '-r150');
+        print(figure_handle, fullfile(plot_folder, 'Plot_7_Momentum.png'), '-dpng', '-r150');
     end
 end
 
