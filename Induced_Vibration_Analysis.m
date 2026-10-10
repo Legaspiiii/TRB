@@ -669,24 +669,31 @@ fprintf('%s\n', line_text);
 
 %% ========================================================================
 %  SECTION 14: PLOTS
+%  ------------------------------------------------------------------------
+%  Every plot gets its own window (one graph per window, no sub-panels).
+%  Each window is listed in figure_handles / figure_names and all of them
+%  are saved together at the end of this section.
 %  ========================================================================
 
-if save_plots && ~exist(plot_folder, 'dir')
-    mkdir(plot_folder);
-end
-speed_axis_scale = linspace(0, 1.2, 200);   % 0 to 120% of max speed
+speed_axis_scale = linspace(0, 1.2, 200);                       % 0 to 120% of max speed
+arm_axis_rpm     = speed_axis_scale * part_max_speed_rpm(arm_index);
+plot_letters     = {'a', 'b', 'c', 'd', 'e', 'f'};
+operating_color  = [0.4 0.4 0.4];
+figure_handles   = {};
+figure_names     = {};
 
 % ------------------------------------------------------------------------
 % PLOT 1: SPEED vs FORCE
-%   Panels 1-3: one rotor each, against its own speed (0 to 120% of its max)
-%   Panel 4:    all rotors together, against arm speed (wheels follow)
+%   1a, 1b, 1c: one rotor each, against its own speed (0 to 120% of its max)
+%   1d:         all rotors together, against arm speed (wheels follow)
 % ------------------------------------------------------------------------
 if make_plot_1_speed_vs_force
-    figure_handle = figure('Name', 'Plot 1 - Speed vs Force', 'Color', 'w', 'Position', [50 50 1300 900]);
-
-    % Panels 1-3: each rotor on its own
     for p = 1:number_of_parts
-        subplot(2, 2, p); hold on; grid on; box on;
+        figure_name = sprintf('Plot 1%s - %s Force vs Speed', plot_letters{p}, part_names{p});
+        figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+        figure_names{end + 1}   = figure_name;
+        hold on; grid on; box on;
+
         part_speed_rpm   = speed_axis_scale * part_max_speed_rpm(p);
         part_speed_rad_s = part_speed_rpm * 2 * pi / 60;
         part_shake_N     = static_imbalance_kgm(p) * part_speed_rad_s .^ 2;
@@ -696,7 +703,7 @@ if make_plot_1_speed_vs_force
         plot(part_speed_rpm, part_shake_N, '-',  'LineWidth', 2,   'Color', part_colors(p, :));
         plot(part_speed_rpm, part_kicks_N, '--', 'LineWidth', 1.5, 'Color', part_colors(p, :));
         plot(part_speed_rpm, part_total_N, '-',  'LineWidth', 2.5, 'Color', total_color);
-        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_N)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_N)], ':', 'Color', operating_color, 'LineWidth', 1.5);
 
         operating_total_N = peak_shake_N(p) + peak_kick_N(p);
         plot(part_max_speed_rpm(p), operating_total_N, 'o', 'MarkerSize', 8, ...
@@ -710,9 +717,11 @@ if make_plot_1_speed_vs_force
                'Location', 'northwest');
     end
 
-    % Panel 4: all rotors together against arm speed (wheels follow the same ramp)
-    subplot(2, 2, 4); hold on; grid on; box on;
-    arm_axis_rpm = speed_axis_scale * part_max_speed_rpm(arm_index);
+    figure_name = 'Plot 1d - All Rotors Force vs Speed';
+    figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+    figure_names{end + 1}   = figure_name;
+    hold on; grid on; box on;
+
     worst_curve = zeros(size(speed_axis_scale));
     rss_curve   = zeros(size(speed_axis_scale));
     part_curves = zeros(number_of_parts, numel(speed_axis_scale));
@@ -726,7 +735,7 @@ if make_plot_1_speed_vs_force
     end
     plot(arm_axis_rpm, worst_curve, 'k-',  'LineWidth', 2.5);
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
-    plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+    plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', operating_color, 'LineWidth', 1.5);
     text(part_max_speed_rpm(arm_index), worst_force_N, sprintf('  worst %.3g N', worst_force_N), 'FontSize', 9);
     xlim([0 arm_axis_rpm(end)]);
     xlabel(sprintf('Arm speed [RPM]   (wheels at %.0f RPM when arm at %.0f RPM)', ...
@@ -734,31 +743,20 @@ if make_plot_1_speed_vs_force
     ylabel('Force [N]');
     title('All rotors together: system force vs arm speed');
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 1 - Speed vs Force');
-        end
-        if isempty(figure_handle)
-            warning('Plot 1 - Speed vs Force could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_1_Speed_vs_Force.png'), '-dpng', '-r150');
-        end
-    end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 2: SPEED vs TORQUE
-%   Panels 1-3: one rotor each, against its own speed (0 to 120% of its max)
-%   Panel 4:    all rotors together, against arm speed (wheels follow)
+%   2a, 2b, 2c: one rotor each, against its own speed (0 to 120% of its max)
+%   2d:         all rotors together, against arm speed (wheels follow)
 % ------------------------------------------------------------------------
 if make_plot_2_speed_vs_torque
-    figure_handle = figure('Name', 'Plot 2 - Speed vs Torque', 'Color', 'w', 'Position', [80 80 1300 900]);
-
-    % Panels 1-3: each rotor on its own
     for p = 1:number_of_parts
-        subplot(2, 2, p); hold on; grid on; box on;
+        figure_name = sprintf('Plot 2%s - %s Moment vs Speed', plot_letters{p}, part_names{p});
+        figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+        figure_names{end + 1}   = figure_name;
+        hold on; grid on; box on;
+
         part_speed_rpm   = speed_axis_scale * part_max_speed_rpm(p);
         part_speed_rad_s = part_speed_rpm * 2 * pi / 60;
         part_shake_N     = static_imbalance_kgm(p) * part_speed_rad_s .^ 2;
@@ -770,7 +768,7 @@ if make_plot_2_speed_vs_torque
         plot(part_speed_rpm, part_rock_Nm,  '-',  'LineWidth', 2,   'Color', part_colors(p, :));
         plot(part_speed_rpm, part_lever_Nm, '--', 'LineWidth', 1.5, 'Color', part_colors(p, :));
         plot(part_speed_rpm, part_total_Nm, '-',  'LineWidth', 2.5, 'Color', total_color);
-        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_Nm)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_Nm)], ':', 'Color', operating_color, 'LineWidth', 1.5);
 
         operating_total_Nm = interp1(part_speed_rpm, part_total_Nm, part_max_speed_rpm(p));
         plot(part_max_speed_rpm(p), operating_total_Nm, 'o', 'MarkerSize', 8, ...
@@ -784,9 +782,11 @@ if make_plot_2_speed_vs_torque
                 'Total for this rotor', 'Operating speed'}, 'Location', 'northwest');
     end
 
-    % Panel 4: all rotors together against arm speed
-    subplot(2, 2, 4); hold on; grid on; box on;
-    arm_axis_rpm = speed_axis_scale * part_max_speed_rpm(arm_index);
+    figure_name = 'Plot 2d - All Rotors Moment vs Speed';
+    figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+    figure_names{end + 1}   = figure_name;
+    hold on; grid on; box on;
+
     worst_curve = zeros(size(speed_axis_scale));
     rss_curve   = zeros(size(speed_axis_scale));
     part_curves = zeros(number_of_parts, numel(speed_axis_scale));
@@ -802,45 +802,38 @@ if make_plot_2_speed_vs_torque
     end
     plot(arm_axis_rpm, worst_curve, 'k-',  'LineWidth', 2.5);
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
-    plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+    plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', operating_color, 'LineWidth', 1.5);
     text(part_max_speed_rpm(arm_index), worst_moment_Nm, sprintf('  worst %.3g N*m', worst_moment_Nm), 'FontSize', 9);
     xlim([0 arm_axis_rpm(end)]);
     xlabel('Arm speed [RPM]   (wheels follow)'); ylabel('Moment Mx / My at reference [N*m]');
-    title(sprintf('All rotors together: system moment vs arm speed   (net ramp twist Mz: %.3g N*m)', simulated_peak_twist_Nm));
+    title(sprintf('All rotors together: moment vs arm speed   (net ramp twist Mz: %.3g N*m)', simulated_peak_twist_Nm));
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 2 - Speed vs Torque');
-        end
-        if isempty(figure_handle)
-            warning('Plot 2 - Speed vs Torque could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_2_Speed_vs_Torque.png'), '-dpng', '-r150');
-        end
-    end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 3: FREQUENCY vs AMPLITUDE (spectrum during the hold)
+%   3a: total force Fx      3b: total moment Mx
 % ------------------------------------------------------------------------
 if make_plot_3_spectrum
     hold_samples = find(in_hold);
     if numel(hold_samples) < 16
         warning('Hold time too short for a spectrum. Plot 3 skipped.');
     else
-        figure_handle = figure('Name', 'Plot 3 - Spectrum', 'Color', 'w', 'Position', [110 110 1200 750]);
         n = numel(hold_samples);
         window = 0.5 - 0.5 * cos(2 * pi * (0:n-1) / (n - 1));   % Hann window
         fft_length = 8 * 2 ^ nextpow2(n);                       % zero padding: peaks read at their true height
         frequency_hz = (0:fft_length / 2) * sample_rate_hz / fft_length;
 
-        signals      = {total_force_x_N(hold_samples), total_moment_x_Nm(hold_samples)};
-        signal_names = {'Total force Fx [N]', 'Total moment Mx [N*m]'};
+        signals       = {total_force_x_N(hold_samples), total_moment_x_Nm(hold_samples)};
+        signal_names  = {'Total force Fx [N]', 'Total moment Mx [N*m]'};
+        spectrum_tags = {'Force Spectrum', 'Moment Spectrum'};
 
         for s = 1:2
-            subplot(2, 1, s); hold on; grid on; box on;
+            figure_name = sprintf('Plot 3%s - %s', plot_letters{s}, spectrum_tags{s});
+            figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+            figure_names{end + 1}   = figure_name;
+            hold on; grid on; box on;
+
             signal = signals{s} - mean(signals{s});
             spectrum = fft(signal .* window, fft_length);
             amplitude = 2 * abs(spectrum(1:fft_length / 2 + 1)) / sum(window);
@@ -866,7 +859,7 @@ if make_plot_3_spectrum
                          'MarkerSize', 7, 'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', part_colors(p, :));
                     text(frequency_hz(nearest), max(amplitude(nearest), floor_level) * 1.6, ...
                          sprintf('%s %s', part_names{p}, source_labels{k}), ...
-                         'FontSize', 7, 'Rotation', 90, 'Color', part_colors(p, :));
+                         'FontSize', 8, 'Rotation', 90, 'Color', part_colors(p, :));
                 end
             end
             xlim([0, 1.15 * fastest_frequency_hz]);
@@ -874,30 +867,22 @@ if make_plot_3_spectrum
             xlabel('Frequency [Hz]'); ylabel(['Amplitude: ', signal_names{s}]);
             title(sprintf('Spectrum during the hold: %s', signal_names{s}));
         end
-
-        if save_plots
-            drawnow;
-            if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-                figure_handle = findobj('Type', 'figure', 'Name', 'Plot 3 - Spectrum');
-            end
-            if isempty(figure_handle)
-                warning('Plot 3 - Spectrum could not be saved (its window was closed).');
-            else
-                print(figure_handle(1), fullfile(plot_folder, 'Plot_3_Spectrum.png'), '-dpng', '-r150');
-            end
-        end
     end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 4: CAMPBELL DIAGRAM (nutation / precession + source lines)
+%   4a, 4b, 4c: one rotor each
 % ------------------------------------------------------------------------
 if make_plot_4_campbell
-    figure_handle = figure('Name', 'Plot 4 - Campbell Diagram', 'Color', 'w', 'Position', [140 140 1500 550]);
     source_styles = {'-', '--', '-.', ':', '--'};
 
     for p = 1:number_of_parts
-        subplot(1, number_of_parts, p); hold on; grid on; box on;
+        figure_name = sprintf('Plot 4%s - %s Campbell Diagram', plot_letters{p}, part_names{p});
+        figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+        figure_names{end + 1}   = figure_name;
+        hold on; grid on; box on;
+
         speed_rpm = campbell_speed_rpm{p};
         modes     = campbell_modes_hz{p};
         sources   = campbell_sources_hz{p};
@@ -941,33 +926,21 @@ if make_plot_4_campbell
         xlim([0 speed_rpm(end)]);
         xlabel(sprintf('%s speed [RPM]', part_names{p}));
         ylabel('Frequency [Hz]');
-        title(sprintf('%s  (x = crossing, dotted = +/-%.0f%% stiffness)', part_names{p}, 100 * stiffness_uncertainty));
+        title(sprintf('%s Campbell diagram  (x = crossing, dotted = +/-%.0f%% stiffness)', part_names{p}, 100 * stiffness_uncertainty));
         for m = 1:size(modes, 1)
             if min(modes(m, :)) > y_top
                 legend_labels{m} = sprintf('%s (off chart, %.0f Hz)', legend_labels{m}, modes(m, 1));
             end
         end
-        legend(legend_handles, legend_labels, 'Location', 'east', 'FontSize', 7);
-    end
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 4 - Campbell Diagram');
-        end
-        if isempty(figure_handle)
-            warning('Plot 4 - Campbell Diagram could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_4_Campbell.png'), '-dpng', '-r150');
-        end
+        legend(legend_handles, legend_labels, 'Location', 'east', 'FontSize', 8);
     end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 5: WATERFALL (frequency vs speed, color = amplitude)
+%   5a: force      5b: moment at reference
 % ------------------------------------------------------------------------
 if make_plot_5_waterfall
-    figure_handle = figure('Name', 'Plot 5 - Waterfall', 'Color', 'w', 'Position', [170 170 1300 550]);
     waterfall_scales = linspace(0.02, 1.2, 70);
 
     point_freq_hz   = [];
@@ -996,8 +969,14 @@ if make_plot_5_waterfall
 
     waterfall_values = {point_force_N, point_moment_Nm};
     waterfall_labels = {'log10( force amplitude [N] )', 'log10( moment amplitude [N*m] )'};
+    waterfall_tags   = {'Force Waterfall', 'Moment Waterfall'};
+    waterfall_titles = {'Waterfall: force', 'Waterfall: moment at reference'};
     for s = 1:2
-        subplot(1, 2, s); hold on; grid on; box on;
+        figure_name = sprintf('Plot 5%s - %s', plot_letters{s}, waterfall_tags{s});
+        figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+        figure_names{end + 1}   = figure_name;
+        hold on; grid on; box on;
+
         values = waterfall_values{s};
         keep = values > 0;
         log_values = log10(values(keep));
@@ -1009,53 +988,44 @@ if make_plot_5_waterfall
         plot([0 1.15 * fastest_frequency_hz * 1.2], [1 1] * part_max_speed_rpm(arm_index), 'k:', 'LineWidth', 1.5);
         xlim([0, 1.15 * fastest_frequency_hz * 1.2]);
         xlabel('Frequency [Hz]'); ylabel('Arm speed [RPM]  (wheels follow)');
-        if s == 1
-            title('Waterfall: force');
-        else
-            title('Waterfall: moment at reference');
-        end
-    end
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 5 - Waterfall');
-        end
-        if isempty(figure_handle)
-            warning('Plot 5 - Waterfall could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_5_Waterfall.png'), '-dpng', '-r150');
-        end
+        title(waterfall_titles{s});
     end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 6: LOADS OVER TIME
+%   6a Fx, 6b Fy, 6c Mx, 6d My, 6e Mz, 6f zoom on the hold
 % ------------------------------------------------------------------------
 if make_plot_6_loads_over_time
-    figure_handle = figure('Name', 'Plot 6 - Loads Over Time', 'Color', 'w', 'Position', [200 30 1200 900]);
     plot_step = max(1, floor(number_of_samples / 100000));
     plot_index = 1:plot_step:number_of_samples;
 
     time_signals = {total_force_x_N, total_force_y_N, total_moment_x_Nm, total_moment_y_Nm, total_moment_z_Nm};
     time_labels  = {'Fx [N]', 'Fy [N]', 'Mx [N*m]', 'My [N*m]', 'Mz net twist [N*m]'};
+    time_tags    = {'Total Fx Over Time', 'Total Fy Over Time', 'Total Mx Over Time', 'Total My Over Time', 'Net Twist Mz Over Time'};
 
     for s = 1:numel(time_signals)
-        subplot(6, 1, s); hold on; grid on; box on;
+        figure_name = sprintf('Plot 6%s - %s', plot_letters{s}, time_tags{s});
+        figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+        figure_names{end + 1}   = figure_name;
+        hold on; grid on; box on;
+
         signal = time_signals{s};
         plot(time_s(plot_index), signal(plot_index), 'Color', total_color, 'LineWidth', 0.8);
         [peak_value, peak_index] = max(abs(signal));
         plot(time_s(peak_index), signal(peak_index), 'ro', 'MarkerFaceColor', 'r');
         text(time_s(peak_index), signal(peak_index), sprintf('  peak %.3g', peak_value), 'FontSize', 9, 'Color', 'r');
-        ylabel(time_labels{s});
         xlim([0 total_time_s]);
-        if s == 1
-            title('Total loads at the reference point over the full run');
-        end
+        xlabel('Time [s]'); ylabel(time_labels{s});
+        title(sprintf('%s at the reference point over the full run', time_labels{s}));
     end
 
     % Zoomed view: two revolutions of the slowest part in the middle of the hold
-    subplot(6, 1, 6); hold on; grid on; box on;
+    figure_name = 'Plot 6f - Zoom on the Hold';
+    figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+    figure_names{end + 1}   = figure_name;
+    hold on; grid on; box on;
+
     zoom_length_s = 2 / max(min(part_max_speed_hz), eps);
     zoom_start_s  = spin_up_time_s + hold_time_s / 2;
     in_zoom = time_s >= zoom_start_s & time_s <= zoom_start_s + zoom_length_s;
@@ -1064,38 +1034,32 @@ if make_plot_6_loads_over_time
     legend({'Fx', 'Fy'}, 'Location', 'northeast');
     xlabel('Time [s]'); ylabel('Force [N]');
     title('Zoom: middle of the hold (two revolutions of the slowest part)');
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 6 - Loads Over Time');
-        end
-        if isempty(figure_handle)
-            warning('Plot 6 - Loads Over Time could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_6_Loads_Over_Time.png'), '-dpng', '-r150');
-        end
-    end
 end
 
 % ------------------------------------------------------------------------
 % PLOT 7: MOMENTUM CHECK
+%   7a: spin momentum      7b: ramp twist
 % ------------------------------------------------------------------------
 if make_plot_7_momentum
-    figure_handle = figure('Name', 'Plot 7 - Momentum', 'Color', 'w', 'Position', [260 60 1100 750]);
     plot_step = max(1, floor(number_of_samples / 20000));
     plot_index = 1:plot_step:number_of_samples;
 
-    subplot(2, 1, 1); hold on; grid on; box on;
+    figure_name = 'Plot 7a - Momentum';
+    figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+    figure_names{end + 1}   = figure_name;
+    hold on; grid on; box on;
     for p = 1:number_of_parts
         plot(time_s(plot_index), part_momentum_Nms(p, plot_index), part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
     end
     plot(time_s(plot_index), net_momentum_Nms(plot_index), 'k--', 'LineWidth', 2.5);
-    ylabel('Spin momentum [N*m*s]');
+    xlabel('Time [s]'); ylabel('Spin momentum [N*m*s]');
     title(sprintf('Momentum: net at max speed = %.3g N*m*s  (%.2f%% of the arm)', net_momentum_at_max_Nms, leftover_percent));
     legend([part_names, {'Net (want about 0)'}], 'Location', 'northeast');
 
-    subplot(2, 1, 2); hold on; grid on; box on;
+    figure_name = 'Plot 7b - Ramp Twist';
+    figure_handles{end + 1} = figure('Name', figure_name, 'NumberTitle', 'off', 'Color', 'w');
+    figure_names{end + 1}   = figure_name;
+    hold on; grid on; box on;
     for p = 1:number_of_parts
         plot(time_s(plot_index), twist_z_Nm(p, plot_index), part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
     end
@@ -1103,20 +1067,30 @@ if make_plot_7_momentum
     xlabel('Time [s]'); ylabel('Twist on structure [N*m]');
     title('Ramp twist: each part and net (net should be about 0 if momentum is balanced)');
     legend([part_names, {'Net'}], 'Location', 'northeast');
-
-    if save_plots
-        drawnow;
-        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
-            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 7 - Momentum');
-        end
-        if isempty(figure_handle)
-            warning('Plot 7 - Momentum could not be saved (its window was closed).');
-        else
-            print(figure_handle(1), fullfile(plot_folder, 'Plot_7_Momentum.png'), '-dpng', '-r150');
-        end
-    end
 end
 
+% ------------------------------------------------------------------------
+% SAVE EVERY PLOT AS A PNG
+%   File name = window name with spaces replaced, e.g. Plot_1a_Wheel_1_Force_vs_Speed.png
+% ------------------------------------------------------------------------
 if save_plots
-    fprintf('Plots saved in folder: %s\n', plot_folder);
+    if ~exist(plot_folder, 'dir')
+        mkdir(plot_folder);
+    end
+    drawnow;
+    number_saved = 0;
+    for i = 1:numel(figure_handles)
+        this_figure = figure_handles{i};
+        if ~ishghandle(this_figure)   % window was closed or replaced: look it up by name
+            this_figure = findobj('Type', 'figure', 'Name', figure_names{i});
+        end
+        file_name = [strrep(strrep(figure_names{i}, ' - ', '_'), ' ', '_'), '.png'];
+        if isempty(this_figure)
+            warning('%s could not be saved (its window was closed).', figure_names{i});
+        else
+            print(this_figure(1), fullfile(plot_folder, file_name), '-dpng', '-r150');
+            number_saved = number_saved + 1;
+        end
+    end
+    fprintf('%d plots saved in folder: %s\n', number_saved, plot_folder);
 end
