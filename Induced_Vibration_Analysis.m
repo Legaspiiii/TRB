@@ -678,27 +678,40 @@ speed_axis_scale = linspace(0, 1.2, 200);   % 0 to 120% of max speed
 
 % ------------------------------------------------------------------------
 % PLOT 1: SPEED vs FORCE
+%   Panels 1-3: one rotor each, against its own speed (0 to 120% of its max)
+%   Panel 4:    all rotors together, against arm speed (wheels follow)
 % ------------------------------------------------------------------------
 if make_plot_1_speed_vs_force
-    figure_handle = figure('Name', 'Plot 1 - Speed vs Force', 'Color', 'w', 'Position', [50 50 1200 500]);
+    figure_handle = figure('Name', 'Plot 1 - Speed vs Force', 'Color', 'w', 'Position', [50 50 1300 900]);
 
-    % (a) each part against its own speed
-    subplot(1, 2, 1); hold on; grid on; box on;
-    part_line_handles = zeros(1, number_of_parts);
+    % Panels 1-3: each rotor on its own
     for p = 1:number_of_parts
-        part_speed_rpm = speed_axis_scale * part_max_speed_rpm(p);
-        part_force_N   = static_imbalance_kgm(p) * (part_speed_rpm * 2 * pi / 60) .^ 2;
-        part_line_handles(p) = plot(part_speed_rpm, part_force_N, part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
-        plot(part_max_speed_rpm(p), peak_shake_N(p), 'o', 'MarkerSize', 8, ...
-             'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
-        text(part_max_speed_rpm(p), peak_shake_N(p), sprintf('  %.3g N', peak_shake_N(p)), 'FontSize', 9);
-    end
-    xlabel('Part speed [RPM]'); ylabel('Shake force [N]');
-    title('(a) Shake force of each part vs its own speed');
-    legend(part_line_handles, part_names, 'Location', 'northwest');
+        subplot(2, 2, p); hold on; grid on; box on;
+        part_speed_rpm   = speed_axis_scale * part_max_speed_rpm(p);
+        part_speed_rad_s = part_speed_rpm * 2 * pi / 60;
+        part_shake_N     = static_imbalance_kgm(p) * part_speed_rad_s .^ 2;
+        part_kicks_N     = part_shake_N * number_of_kicks * bearing_kick_ratio;
+        part_total_N     = part_shake_N + part_kicks_N;
 
-    % (b) whole system against arm speed (wheels follow the same ramp)
-    subplot(1, 2, 2); hold on; grid on; box on;
+        plot(part_speed_rpm, part_shake_N, '-',  'LineWidth', 2,   'Color', part_colors(p, :));
+        plot(part_speed_rpm, part_kicks_N, '--', 'LineWidth', 1.5, 'Color', part_colors(p, :));
+        plot(part_speed_rpm, part_total_N, '-',  'LineWidth', 2.5, 'Color', total_color);
+        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_N)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+
+        operating_total_N = peak_shake_N(p) + peak_kick_N(p);
+        plot(part_max_speed_rpm(p), operating_total_N, 'o', 'MarkerSize', 8, ...
+             'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
+        text(part_max_speed_rpm(p), operating_total_N, sprintf('  %.3g N', operating_total_N), 'FontSize', 9);
+
+        xlim([0 part_speed_rpm(end)]);
+        xlabel(sprintf('%s speed [RPM]', part_names{p})); ylabel('Force [N]');
+        title(sprintf('%s: force vs its own speed (max %.0f RPM)', part_names{p}, part_max_speed_rpm(p)));
+        legend({'Shake (imbalance)', 'Bearing kicks (all 4 lined up)', 'Total for this rotor', 'Operating speed'}, ...
+               'Location', 'northwest');
+    end
+
+    % Panel 4: all rotors together against arm speed (wheels follow the same ramp)
+    subplot(2, 2, 4); hold on; grid on; box on;
     arm_axis_rpm = speed_axis_scale * part_max_speed_rpm(arm_index);
     worst_curve = zeros(size(speed_axis_scale));
     rss_curve   = zeros(size(speed_axis_scale));
@@ -706,7 +719,7 @@ if make_plot_1_speed_vs_force
     for i = 1:numel(speed_axis_scale)
         worst_curve(i)    = calc_worst_force_N(1, 1, bearing_kick_ratio, speed_axis_scale(i));
         rss_curve(i)      = calc_rss_force_N(1, 1, bearing_kick_ratio, speed_axis_scale(i));
-        part_curves(:, i) = calc_shake_N(1, 1, speed_axis_scale(i))';
+        part_curves(:, i) = (calc_shake_N(1, 1, speed_axis_scale(i)) * (1 + number_of_kicks * bearing_kick_ratio))';
     end
     for p = 1:number_of_parts
         plot(arm_axis_rpm, part_curves(p, :), part_line_styles{p}, 'LineWidth', 1.5, 'Color', part_colors(p, :));
@@ -715,10 +728,11 @@ if make_plot_1_speed_vs_force
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
     plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
     text(part_max_speed_rpm(arm_index), worst_force_N, sprintf('  worst %.3g N', worst_force_N), 'FontSize', 9);
+    xlim([0 arm_axis_rpm(end)]);
     xlabel(sprintf('Arm speed [RPM]   (wheels at %.0f RPM when arm at %.0f RPM)', ...
         part_max_speed_rpm(1), part_max_speed_rpm(arm_index)));
     ylabel('Force [N]');
-    title('(b) System force vs arm speed');
+    title('All rotors together: system force vs arm speed');
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
 
     if save_plots
@@ -728,34 +742,52 @@ end
 
 % ------------------------------------------------------------------------
 % PLOT 2: SPEED vs TORQUE
+%   Panels 1-3: one rotor each, against its own speed (0 to 120% of its max)
+%   Panel 4:    all rotors together, against arm speed (wheels follow)
 % ------------------------------------------------------------------------
 if make_plot_2_speed_vs_torque
-    figure_handle = figure('Name', 'Plot 2 - Speed vs Torque', 'Color', 'w', 'Position', [80 80 1200 500]);
+    figure_handle = figure('Name', 'Plot 2 - Speed vs Torque', 'Color', 'w', 'Position', [80 80 1300 900]);
 
-    % (a) rock moment of each part against its own speed
-    subplot(1, 2, 1); hold on; grid on; box on;
-    part_line_handles = zeros(1, number_of_parts);
+    % Panels 1-3: each rotor on its own
     for p = 1:number_of_parts
-        part_speed_rpm = speed_axis_scale * part_max_speed_rpm(p);
-        part_rock_Nm   = dynamic_imbalance_kgm2(p) * (part_speed_rpm * 2 * pi / 60) .^ 2;
-        part_line_handles(p) = plot(part_speed_rpm, part_rock_Nm, part_line_styles{p}, 'LineWidth', 2, 'Color', part_colors(p, :));
-        plot(part_max_speed_rpm(p), peak_rock_Nm(p), 'o', 'MarkerSize', 8, ...
-             'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
-        text(part_max_speed_rpm(p), peak_rock_Nm(p), sprintf('  %.3g N*m', peak_rock_Nm(p)), 'FontSize', 9);
-    end
-    xlabel('Part speed [RPM]'); ylabel('Rock moment [N*m]');
-    title('(a) Rock moment of each part vs its own speed');
-    legend(part_line_handles, part_names, 'Location', 'northwest');
+        subplot(2, 2, p); hold on; grid on; box on;
+        part_speed_rpm   = speed_axis_scale * part_max_speed_rpm(p);
+        part_speed_rad_s = part_speed_rpm * 2 * pi / 60;
+        part_shake_N     = static_imbalance_kgm(p) * part_speed_rad_s .^ 2;
+        part_rock_Nm     = dynamic_imbalance_kgm2(p) * part_speed_rad_s .^ 2;
+        part_lever_Nm    = abs(cm_distance_m(p)) * part_shake_N ...
+                         + abs(bearing_mid_distance_m(p)) * part_shake_N * number_of_kicks * bearing_kick_ratio;
+        part_total_Nm    = part_rock_Nm + part_lever_Nm;
 
-    % (b) total moment at the reference point against arm speed
-    subplot(1, 2, 2); hold on; grid on; box on;
+        plot(part_speed_rpm, part_rock_Nm,  '-',  'LineWidth', 2,   'Color', part_colors(p, :));
+        plot(part_speed_rpm, part_lever_Nm, '--', 'LineWidth', 1.5, 'Color', part_colors(p, :));
+        plot(part_speed_rpm, part_total_Nm, '-',  'LineWidth', 2.5, 'Color', total_color);
+        plot([1 1] * part_max_speed_rpm(p), [0 max(part_total_Nm)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
+
+        operating_total_Nm = interp1(part_speed_rpm, part_total_Nm, part_max_speed_rpm(p));
+        plot(part_max_speed_rpm(p), operating_total_Nm, 'o', 'MarkerSize', 8, ...
+             'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
+        text(part_max_speed_rpm(p), operating_total_Nm, sprintf('  %.3g N*m', operating_total_Nm), 'FontSize', 9);
+
+        xlim([0 part_speed_rpm(end)]);
+        xlabel(sprintf('%s speed [RPM]', part_names{p})); ylabel('Moment [N*m]');
+        title(sprintf('%s: moment vs its own speed   (ramp twist Mz: %.3g N*m)', part_names{p}, peak_twist_Nm(p)));
+        legend({'Rock (tilt)', sprintf('Force x distance to reference (%.3f m)', abs(cm_distance_m(p))), ...
+                'Total for this rotor', 'Operating speed'}, 'Location', 'northwest');
+    end
+
+    % Panel 4: all rotors together against arm speed
+    subplot(2, 2, 4); hold on; grid on; box on;
+    arm_axis_rpm = speed_axis_scale * part_max_speed_rpm(arm_index);
     worst_curve = zeros(size(speed_axis_scale));
     rss_curve   = zeros(size(speed_axis_scale));
     part_curves = zeros(number_of_parts, numel(speed_axis_scale));
     for i = 1:numel(speed_axis_scale)
         worst_curve(i)    = calc_worst_moment_Nm(1, 1, 1, bearing_kick_ratio, speed_axis_scale(i));
         rss_curve(i)      = calc_rss_moment_Nm(1, 1, 1, bearing_kick_ratio, speed_axis_scale(i));
-        part_curves(:, i) = (calc_rock_Nm(1, 1, speed_axis_scale(i)) + abs(cm_distance_m) .* calc_shake_N(1, 1, speed_axis_scale(i)))';
+        shake_now         = calc_shake_N(1, 1, speed_axis_scale(i));
+        part_curves(:, i) = (calc_rock_Nm(1, 1, speed_axis_scale(i)) + abs(cm_distance_m) .* shake_now ...
+                          + abs(bearing_mid_distance_m) .* shake_now * number_of_kicks * bearing_kick_ratio)';
     end
     for p = 1:number_of_parts
         plot(arm_axis_rpm, part_curves(p, :), part_line_styles{p}, 'LineWidth', 1.5, 'Color', part_colors(p, :));
@@ -764,8 +796,9 @@ if make_plot_2_speed_vs_torque
     plot(arm_axis_rpm, rss_curve,   'k--', 'LineWidth', 2);
     plot([1 1] * part_max_speed_rpm(arm_index), [0 max(worst_curve)], ':', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
     text(part_max_speed_rpm(arm_index), worst_moment_Nm, sprintf('  worst %.3g N*m', worst_moment_Nm), 'FontSize', 9);
-    xlabel('Arm speed [RPM]'); ylabel('Moment Mx / My at reference [N*m]');
-    title(sprintf('(b) System moment vs arm speed   (net ramp twist Mz peak: %.3g N*m)', simulated_peak_twist_Nm));
+    xlim([0 arm_axis_rpm(end)]);
+    xlabel('Arm speed [RPM]   (wheels follow)'); ylabel('Moment Mx / My at reference [N*m]');
+    title(sprintf('All rotors together: system moment vs arm speed   (net ramp twist Mz: %.3g N*m)', simulated_peak_twist_Nm));
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
 
     if save_plots
