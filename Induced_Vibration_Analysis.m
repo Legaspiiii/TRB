@@ -736,7 +736,15 @@ if make_plot_1_speed_vs_force
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_1_Speed_vs_Force.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 1 - Speed vs Force');
+        end
+        if isempty(figure_handle)
+            warning('Plot 1 - Speed vs Force could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_1_Speed_vs_Force.png'), '-dpng', '-r150');
+        end
     end
 end
 
@@ -802,7 +810,15 @@ if make_plot_2_speed_vs_torque
     legend([part_names, {'Total worst case', 'Total random phase', 'Operating point'}], 'Location', 'northwest');
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_2_Speed_vs_Torque.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 2 - Speed vs Torque');
+        end
+        if isempty(figure_handle)
+            warning('Plot 2 - Speed vs Torque could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_2_Speed_vs_Torque.png'), '-dpng', '-r150');
+        end
     end
 end
 
@@ -860,7 +876,15 @@ if make_plot_3_spectrum
         end
 
         if save_plots
-            print(figure_handle, fullfile(plot_folder, 'Plot_3_Spectrum.png'), '-dpng', '-r150');
+            drawnow;
+            if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+                figure_handle = findobj('Type', 'figure', 'Name', 'Plot 3 - Spectrum');
+            end
+            if isempty(figure_handle)
+                warning('Plot 3 - Spectrum could not be saved (its window was closed).');
+            else
+                print(figure_handle(1), fullfile(plot_folder, 'Plot_3_Spectrum.png'), '-dpng', '-r150');
+            end
         end
     end
 end
@@ -927,7 +951,15 @@ if make_plot_4_campbell
     end
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_4_Campbell.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 4 - Campbell Diagram');
+        end
+        if isempty(figure_handle)
+            warning('Plot 4 - Campbell Diagram could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_4_Campbell.png'), '-dpng', '-r150');
+        end
     end
 end
 
@@ -985,7 +1017,15 @@ if make_plot_5_waterfall
     end
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_5_Waterfall.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 5 - Waterfall');
+        end
+        if isempty(figure_handle)
+            warning('Plot 5 - Waterfall could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_5_Waterfall.png'), '-dpng', '-r150');
+        end
     end
 end
 
@@ -1026,7 +1066,15 @@ if make_plot_6_loads_over_time
     title('Zoom: middle of the hold (two revolutions of the slowest part)');
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_6_Loads_Over_Time.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 6 - Loads Over Time');
+        end
+        if isempty(figure_handle)
+            warning('Plot 6 - Loads Over Time could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_6_Loads_Over_Time.png'), '-dpng', '-r150');
+        end
     end
 end
 
@@ -1057,7 +1105,15 @@ if make_plot_7_momentum
     legend([part_names, {'Net'}], 'Location', 'northeast');
 
     if save_plots
-        print(figure_handle, fullfile(plot_folder, 'Plot_7_Momentum.png'), '-dpng', '-r150');
+        drawnow;
+        if ~ishghandle(figure_handle)   % window was closed or replaced: look it up by name
+            figure_handle = findobj('Type', 'figure', 'Name', 'Plot 7 - Momentum');
+        end
+        if isempty(figure_handle)
+            warning('Plot 7 - Momentum could not be saved (its window was closed).');
+        else
+            print(figure_handle(1), fullfile(plot_folder, 'Plot_7_Momentum.png'), '-dpng', '-r150');
+        end
     end
 end
 
