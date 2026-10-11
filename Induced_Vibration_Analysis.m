@@ -159,7 +159,7 @@ bearing_cup_angle_deg     = [wheel1_bearing_cup_angle_deg,  arm_bearing_cup_angl
 bearing_runout_um         = [wheel1_bearing_runout_um,      arm_bearing_runout_um,      wheel2_bearing_runout_um];
 bearing_load_offset_mm    = [wheel1_bearing_load_offset_mm, arm_bearing_load_offset_mm, wheel2_bearing_load_offset_mm];
 
-% Plot style per part: Wheel 1 = blue circle, Arm = orange square, Wheel 2 = green diamond
+% Plot style per part: Wheel 1 = blue solid, Arm = orange dash-dot, Wheel 2 = green dashed
 part_colors  = [0.00 0.45 0.74;
                 0.85 0.33 0.10;
                 0.47 0.67 0.19];
