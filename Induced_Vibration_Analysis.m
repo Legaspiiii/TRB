@@ -28,9 +28,12 @@
 %    axial   = along the shaft (spin axis)
 %
 %  How to use:
-%    1. Edit SECTION 1 only.
+%    1. Edit SECTION 1 only (your numbers).
 %    2. Run the script.
-%    3. Read the KEY RESULTS box at the bottom and the 2 plots.
+%    3. Your answer is the "YOUR ANSWER" box at the very bottom of the
+%       Command Window. Everything above it is supporting detail.
+%       The same numbers are also saved as variables starting with
+%       final_ in the Workspace.
 %  ========================================================================
 
 clear; clc;
@@ -213,7 +216,7 @@ net_twist_Nm    = abs(sum(spin_direction .* Izz_kgm2 .* speed_rad_s)) / ramp_tim
 line_text = repmat('=', 1, 92);
 
 % ---- Table 1: each rotor at max speed ----
-fprintf('\n%s\n EACH ROTOR AT MAX SPEED\n%s\n', line_text, line_text);
+fprintf('\n%s\n DETAIL 1: EACH ROTOR AT MAX SPEED\n%s\n', line_text, line_text);
 fprintf('%-34s %14s %14s %14s\n', '', rotor_names{1}, rotor_names{2}, rotor_names{3});
 fprintf('%-34s %14.0f %14.0f %14.0f\n', 'Speed [RPM]',                         max_speed_rpm .* spin_direction);
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Imbalance lateral force [N]',          shake_N);
@@ -224,7 +227,7 @@ fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Total moment at reference [N*m]',      
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Twist during spin-up/down [N*m]',      rotor_twist_Nm);
 
 % ---- Table 2: every disturbance with its frequency (harmonics of RPM) ----
-fprintf('\n%s\n DISTURBANCES AT MAX SPEED  (frequency = harmonic x RPM / 60)\n%s\n', line_text, line_text);
+fprintf('\n%s\n DETAIL 2: EVERY DISTURBANCE AT MAX SPEED  (frequency = harmonic x RPM / 60)\n%s\n', line_text, line_text);
 fprintf('%-9s %-24s %10s %12s %14s %14s\n', 'Rotor', 'Source', 'Harmonic', 'Freq [Hz]', 'Lateral [N]', 'Axial [N]');
 for r = 1:number_of_rotors
     fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, 'Imbalance (1x)', 1, speed_hz(r), shake_N(r), 0);
@@ -234,31 +237,7 @@ for r = 1:number_of_rotors
     end
 end
 
-% ---- Key results ----
-fprintf('\n%s\n KEY RESULTS - forces and moments induced on the structure (worst case, max speed)\n%s\n', line_text, line_text);
-fprintf(' %-46s %12.4g  N\n',   'Lateral (sideways) force',                total_lateral_N);
-fprintf(' %-46s %12.4g  N\n',   'Axial (along the shaft) force',           total_axial_N);
-fprintf(' %-46s %12.4g  N*m\n', 'Moment (tipping) at reference point',     total_moment_Nm);
-fprintf(' %-46s %12.4g  N*m\n', 'Net twist during spin-up/down',           net_twist_Nm);
-fprintf(' %-46s %s %.3g, %s %.3g, %s %.3g  N*m\n', 'Twist on each motor mount during ramps', ...
-    rotor_names{1}, rotor_twist_Nm(1), rotor_names{2}, rotor_twist_Nm(2), rotor_names{3}, rotor_twist_Nm(3));
-fprintf('%s\n', line_text);
-
-% ---- Results at other speeds ----
-% Every force and moment grows with speed squared, so at a lower speed:
-%   value(new speed) = value(max speed) x (new speed / max speed)^2
-% Bearing frequencies scale with speed:  freq(new) = freq(max) x (new / max)
-if ~isempty(report_arm_rpm)
-    fprintf('\n RESULTS AT OTHER SPEEDS  (worst case; wheels follow the arm at the same speed ratio)\n');
-    fprintf(' %10s %10s %10s %14s %14s %14s\n', 'Arm RPM', 'Wheel 1', 'Wheel 2', 'Lateral [N]', 'Axial [N]', 'Moment [N*m]');
-    for i = 1:numel(report_arm_rpm)
-        speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
-        fprintf(' %10.1f %10.1f %10.1f %14.4g %14.4g %14.4g\n', report_arm_rpm(i), ...
-            max_speed_rpm(1) * speed_ratio, max_speed_rpm(3) * speed_ratio, ...
-            total_lateral_N * speed_ratio ^ 2, total_axial_N * speed_ratio ^ 2, total_moment_Nm * speed_ratio ^ 2);
-    end
-    fprintf('%s\n', line_text);
-end
+fprintf('(Details above. YOUR ANSWER is printed at the very bottom.)\n');
 
 
 %% ========================================================================
@@ -323,3 +302,51 @@ if make_plots
         end
     end
 end
+
+
+%% ========================================================================
+%  SECTION 9: YOUR ANSWER  (printed last, so it is at the bottom of the
+%  Command Window, and saved as final_ variables in the Workspace)
+%  ========================================================================
+
+final_lateral_force_N    = total_lateral_N;
+final_axial_force_N      = total_axial_N;
+final_moment_Nm          = total_moment_Nm;
+final_net_twist_Nm       = net_twist_Nm;
+final_motor_mount_twist_Nm = rotor_twist_Nm;
+final_imbalance_lateral_N  = sum(shake_N);
+final_bearing_lateral_N    = sum(bearing_lateral_N);
+final_bearing_axial_N      = sum(bearing_axial_N);
+
+box_line = repmat('#', 1, 78);
+fprintf('\n\n%s\n', box_line);
+fprintf('#%76s#\n', '');
+fprintf('#%-76s#\n', '   YOUR ANSWER: forces and moments your system puts on the structure');
+fprintf('#%76s#\n', '');
+fprintf('%s\n', box_line);
+fprintf('   Worst case, at max speed:  %s %.0f RPM  |  %s %.0f RPM  |  %s %.0f RPM\n\n', ...
+    rotor_names{1}, max_speed_rpm(1), rotor_names{2}, max_speed_rpm(2), rotor_names{3}, max_speed_rpm(3));
+fprintf('   LATERAL FORCE  (sideways)            %12.4g  N\n',   final_lateral_force_N);
+fprintf('   AXIAL FORCE    (along the shaft)     %12.4g  N\n',   final_axial_force_N);
+fprintf('   MOMENT         (tipping)             %12.4g  N*m\n', final_moment_Nm);
+fprintf('   TWIST          (about the shaft, only during spin-up / spin-down)\n');
+fprintf('        net on the structure            %12.4g  N*m\n', final_net_twist_Nm);
+fprintf('        on each motor mount             %s %.3g | %s %.3g | %s %.3g  N*m\n', ...
+    rotor_names{1}, final_motor_mount_twist_Nm(1), rotor_names{2}, final_motor_mount_twist_Nm(2), ...
+    rotor_names{3}, final_motor_mount_twist_Nm(3));
+fprintf('\n   WHERE THE LATERAL FORCE COMES FROM\n');
+fprintf('        imbalance (wheels + arm)        %12.4g  N\n', final_imbalance_lateral_N);
+fprintf('        bearings  (all harmonics)       %12.4g  N   (axial: %.4g N)\n', final_bearing_lateral_N, final_bearing_axial_N);
+
+if ~isempty(report_arm_rpm)
+    fprintf('\n   AT OTHER SPEEDS  (wheels follow the arm; every value grows with speed squared)\n');
+    fprintf('   %10s %10s %10s %14s %14s %14s\n', 'Arm RPM', [rotor_names{1}, ' RPM'], [rotor_names{3}, ' RPM'], ...
+        'Lateral [N]', 'Axial [N]', 'Moment [N*m]');
+    for i = 1:numel(report_arm_rpm)
+        speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
+        fprintf('   %10.1f %10.1f %10.1f %14.4g %14.4g %14.4g\n', report_arm_rpm(i), ...
+            max_speed_rpm(1) * speed_ratio, max_speed_rpm(3) * speed_ratio, ...
+            final_lateral_force_N * speed_ratio ^ 2, final_axial_force_N * speed_ratio ^ 2, final_moment_Nm * speed_ratio ^ 2);
+    end
+end
+fprintf('\n%s\n', box_line);
