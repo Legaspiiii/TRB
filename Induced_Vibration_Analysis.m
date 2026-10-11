@@ -28,8 +28,8 @@
 %    3. Read the printed summary and the 2 plots.
 %  ========================================================================
 
-clear; clc; close all;
-set(0, 'DefaultFigureVisible', 'on');   % make sure plot windows are allowed to show
+clear; clc;
+fprintf('Calculating...\n');
 
 
 %% ========================================================================
@@ -126,8 +126,11 @@ include_bearing_runout = true;   % true  = add bearing runout on top of eccentri
                                  % false = eccentricity was measured on the assembled part
 bearing_kick_ratio     = 0.01;   % [-] strength of each bearing kick as a fraction of the shake (0.01 = 1%)
 
-save_plots  = true;                        % save the 2 plots as PNG files
-plot_folder = 'Induced_Vibration_Plots';   % folder the PNG files go into
+make_plots  = true;    % true = draw the 2 plots in MATLAB windows
+                       % false = skip plotting (results + CSV file are still produced)
+save_plots  = false;   % true = also save the plots as PNG files (only turn on once plots show)
+plot_folder = 'Induced_Vibration_Plots';            % folder for PNG files
+csv_file    = 'Induced_Vibration_Force_vs_RPM.csv'; % plot data, written every run (open in Excel)
 
 
 %% ========================================================================
@@ -384,59 +387,109 @@ fprintf('%s\n', line_text);
 
 
 %% ========================================================================
-%  SECTION 10: PLOTS  (2 plots, one graph each)
+%  SECTION 10: PLOT DATA  (written to a CSV file every run, no graphics needed)
 %  ------------------------------------------------------------------------
-%  Plot 1: lateral force vs RPM      Plot 2: axial force vs RPM
-%  If anything goes wrong while plotting, the error is printed and the
-%  results above are not affected.
+%  Every load grows with speed squared, so each curve is just
+%  value_at_max_speed x (speed / max speed)^2
 %  ========================================================================
 
-speed_scale  = linspace(0, 1.2, 121);                          % 0 to 120% of max speed
-arm_axis_rpm = speed_scale * part_max_speed_rpm(arm_index);    % x-axis
-wheel_ratio  = part_max_speed_rpm(1) / part_max_speed_rpm(arm_index);
-x_label_text = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', wheel_ratio);
-legend_text  = [part_names, {'Total (worst case)', 'Total (typical)'}];
+speed_scale  = linspace(0, 1.2, 121)';                         % 0 to 120% of max speed (column)
+arm_axis_rpm = speed_scale * part_max_speed_rpm(arm_index);    % x-axis: arm speed
+wheel_axis_rpm = speed_scale * part_max_speed_rpm(1);          % matching wheel speed
+curve_shape  = speed_scale .^ 2;
 
-plot_forces = {lateral_force_N, axial_force_N};
-plot_worst  = [total_lateral_worst_N, total_axial_worst_N];
-plot_rss    = [total_lateral_rss_N,   total_axial_rss_N];
-plot_titles = {'Plot 1: Lateral force vs RPM', 'Plot 2: Axial force vs RPM'};
-plot_ylabel = {'Lateral force [N]', 'Axial force [N]'};
-plot_files  = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
+lateral_curves_N = curve_shape * lateral_force_N;              % columns: Wheel 1, Arm, Wheel 2
+axial_curves_N   = curve_shape * axial_force_N;
+lateral_worst_curve_N = curve_shape * total_lateral_worst_N;
+lateral_rss_curve_N   = curve_shape * total_lateral_rss_N;
+axial_worst_curve_N   = curve_shape * total_axial_worst_N;
+axial_rss_curve_N     = curve_shape * total_axial_rss_N;
 
-for n = 1:2
-    try
-        figure(n);
-        clf;
-        hold on;
-        grid on;
-        box on;
-        force_at_max = plot_forces{n};
-        for p = 1:number_of_parts
-            plot(arm_axis_rpm, force_at_max(p) * speed_scale .^ 2, part_lines{p}, ...
-                 'Color', part_colors(p, :), 'LineWidth', 2);
-        end
-        plot(arm_axis_rpm, plot_worst(n) * speed_scale .^ 2, 'k-',  'LineWidth', 2.5);
-        plot(arm_axis_rpm, plot_rss(n)   * speed_scale .^ 2, 'k--', 'LineWidth', 2);
-        plot(part_max_speed_rpm(arm_index), plot_worst(n), 'ko', 'MarkerFaceColor', 'k');
-        text(part_max_speed_rpm(arm_index), plot_worst(n), sprintf('%.3g N at max speed   ', plot_worst(n)), ...
-             'HorizontalAlignment', 'right');
-        xlabel(x_label_text);
-        ylabel(plot_ylabel{n});
-        title(plot_titles{n});
-        legend(legend_text, 'Location', 'northwest');
-        hold off;
-        drawnow;
-
-        if save_plots
-            if ~exist(plot_folder, 'dir')
-                mkdir(plot_folder);
-            end
-            saveas(gcf, fullfile(plot_folder, plot_files{n}));
-            fprintf('Saved plot: %s\n', fullfile(pwd, plot_folder, plot_files{n}));
-        end
-    catch
-        fprintf('\nPLOT %d PROBLEM: %s\n', n, lasterr);
-        fprintf('The results above are still correct. Send this message to get the plot fixed.\n');
+csv_id = fopen(csv_file, 'w');
+if csv_id > 0
+    fprintf(csv_id, 'Arm_RPM,Wheel_RPM,Lateral_%s_N,Lateral_%s_N,Lateral_%s_N,Lateral_Total_Worst_N,Lateral_Total_Typical_N,', ...
+        strrep(part_names{1}, ' ', '_'), strrep(part_names{2}, ' ', '_'), strrep(part_names{3}, ' ', '_'));
+    fprintf(csv_id, 'Axial_%s_N,Axial_%s_N,Axial_%s_N,Axial_Total_Worst_N,Axial_Total_Typical_N\n', ...
+        strrep(part_names{1}, ' ', '_'), strrep(part_names{2}, ' ', '_'), strrep(part_names{3}, ' ', '_'));
+    for i = 1:numel(speed_scale)
+        fprintf(csv_id, '%.4f,%.4f,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g\n', ...
+            arm_axis_rpm(i), wheel_axis_rpm(i), lateral_curves_N(i, :), lateral_worst_curve_N(i), lateral_rss_curve_N(i), ...
+            axial_curves_N(i, :), axial_worst_curve_N(i), axial_rss_curve_N(i));
     end
+    fclose(csv_id);
+    fprintf('Plot data saved (open in Excel if plots do not show): %s\n', fullfile(pwd, csv_file));
+end
+
+
+%% ========================================================================
+%  SECTION 11: PLOTS  (2 plots, one graph each)
+%  ------------------------------------------------------------------------
+%  Plot 1: lateral force vs RPM      Plot 2: axial force vs RPM
+%  Progress messages are printed so you can see exactly where it is.
+%  If MATLAB's graphics fail, the error is printed and the results above
+%  are not affected.
+%  ========================================================================
+
+if make_plots
+    wheel_ratio  = part_max_speed_rpm(1) / part_max_speed_rpm(arm_index);
+    x_label_text = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', wheel_ratio);
+    legend_text  = [part_names, {'Total (worst case)', 'Total (typical)'}];
+
+    plot_parts  = {lateral_curves_N, axial_curves_N};
+    plot_worst  = {lateral_worst_curve_N, axial_worst_curve_N};
+    plot_rss    = {lateral_rss_curve_N, axial_rss_curve_N};
+    plot_at_max = [total_lateral_worst_N, total_axial_worst_N];
+    plot_titles = {'Plot 1: Lateral force vs RPM', 'Plot 2: Axial force vs RPM'};
+    plot_ylabel = {'Lateral force [N]', 'Axial force [N]'};
+    plot_files  = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
+
+    for n = 1:2
+        fprintf('Drawing plot %d...\n', n);
+        try
+            figure(n);
+            clf;
+            try
+                set(gcf, 'Renderer', 'painters');   % simple renderer: avoids graphics-card hangs
+            catch
+            end
+            hold on;
+            grid on;
+            box on;
+            part_curves = plot_parts{n};
+            for p = 1:number_of_parts
+                plot(arm_axis_rpm, part_curves(:, p), part_lines{p}, 'Color', part_colors(p, :), 'LineWidth', 2);
+            end
+            plot(arm_axis_rpm, plot_worst{n}, 'k-',  'LineWidth', 2.5);
+            plot(arm_axis_rpm, plot_rss{n},   'k--', 'LineWidth', 2);
+            plot(part_max_speed_rpm(arm_index), plot_at_max(n), 'ko', 'MarkerFaceColor', 'k');
+            text(part_max_speed_rpm(arm_index), plot_at_max(n), sprintf('%.3g N at max speed   ', plot_at_max(n)), ...
+                 'HorizontalAlignment', 'right');
+            xlabel(x_label_text);
+            ylabel(plot_ylabel{n});
+            title(plot_titles{n});
+            legend(legend_text, 'Location', 'northwest');
+            hold off;
+            fprintf('Plot %d done.\n', n);
+        catch
+            fprintf('PLOT %d PROBLEM: %s\n', n, lasterr);
+        end
+    end
+
+    if save_plots
+        if ~exist(plot_folder, 'dir')
+            mkdir(plot_folder);
+        end
+        for n = 1:2
+            fprintf('Saving plot %d...\n', n);
+            try
+                saveas(figure(n), fullfile(plot_folder, plot_files{n}));
+                fprintf('Saved: %s\n', fullfile(pwd, plot_folder, plot_files{n}));
+            catch
+                fprintf('SAVE %d PROBLEM: %s\n', n, lasterr);
+            end
+        end
+    end
+    fprintf('Finished. If the plot windows are not visible, check behind the MATLAB window.\n');
+else
+    fprintf('Plots are turned off (make_plots = false). Use the CSV file to plot in Excel.\n');
 end
