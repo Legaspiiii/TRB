@@ -373,7 +373,8 @@ x_label_text  = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', w
 % ------------------------------------------------------------------------
 % PLOT 1: LATERAL FORCE vs RPM
 % ------------------------------------------------------------------------
-figure_1 = figure('Name', 'Plot 1 - Lateral Force vs RPM', 'NumberTitle', 'off', 'Color', 'w');
+figure_1 = figure('Name', 'Plot 1 - Lateral Force vs RPM', 'NumberTitle', 'off', 'Color', 'w', ...
+                  'Visible', 'on', 'WindowStyle', 'normal');
 hold on; grid on; box on;
 for p = 1:number_of_parts
     plot(arm_axis_rpm, lateral_force_N(p) * speed_scale .^ 2, part_lines{p}, ...
@@ -392,7 +393,8 @@ legend([part_names, {'Total (worst case)', 'Total (random phase)', 'Operating sp
 % ------------------------------------------------------------------------
 % PLOT 2: AXIAL FORCE vs RPM
 % ------------------------------------------------------------------------
-figure_2 = figure('Name', 'Plot 2 - Axial Force vs RPM', 'NumberTitle', 'off', 'Color', 'w');
+figure_2 = figure('Name', 'Plot 2 - Axial Force vs RPM', 'NumberTitle', 'off', 'Color', 'w', ...
+                  'Visible', 'on', 'WindowStyle', 'normal');
 hold on; grid on; box on;
 for p = 1:number_of_parts
     plot(arm_axis_rpm, axial_force_N(p) * speed_scale .^ 2, part_lines{p}, ...
@@ -421,9 +423,35 @@ if save_plots
     for i = 1:2
         if ishghandle(all_figures{i})
             print(all_figures{i}, fullfile(plot_folder, all_files{i}), '-dpng', '-r150');
+            fprintf('Saved plot: %s\n', fullfile(pwd, plot_folder, all_files{i}));
         else
             warning('%s was closed before it could be saved.', all_files{i});
         end
     end
-    fprintf('Plots saved in folder: %s\n', plot_folder);
 end
+
+% Bring the plot windows to the front
+drawnow;
+if ishghandle(figure_2), figure(figure_2); end
+if ishghandle(figure_1), figure(figure_1); end
+
+
+%% ========================================================================
+%  SECTION 10: KEY RESULTS  (printed last so it is the first thing you see)
+%  ========================================================================
+
+[~, biggest_part] = max(lateral_force_N);
+fprintf('\n%s\n', line_text);
+fprintf(' KEY RESULTS - loads your system puts on the structure at max speed\n');
+fprintf('%s\n', line_text);
+fprintf(' %-34s %12s %14s\n', '', 'WORST CASE', 'TYPICAL');
+fprintf(' %-34s %12.4g %14.4g   N\n',   'Lateral (sideways) force',       total_lateral_worst_N, total_lateral_rss_N);
+fprintf(' %-34s %12.4g %14.4g   N\n',   'Axial (along the shaft) force',  total_axial_worst_N,   total_axial_rss_N);
+fprintf(' %-34s %12.4g %14.4g   N*m\n', 'Moment (tipping)',               total_moment_worst_Nm, total_moment_rss_Nm);
+fprintf(' %-34s %12.4g %14s   N*m\n',   'Net twist during spin-up/down',  net_twist_Nm, '');
+fprintf('\n Twist on each motor mount during spin-up/down:  %s %.3g, %s %.3g, %s %.3g N*m\n', ...
+    part_names{1}, twist_Nm(1), part_names{2}, twist_Nm(2), part_names{3}, twist_Nm(3));
+fprintf(' Biggest single source of lateral force:          %s (%.3g N)\n', ...
+    part_names{biggest_part}, lateral_force_N(biggest_part));
+fprintf(' All sanity checks passed:                        %s\n', check_labels{(check_speed && check_bearings && check_momentum) + 1});
+fprintf('%s\n', line_text);
