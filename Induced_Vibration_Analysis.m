@@ -29,6 +29,7 @@
 %  ========================================================================
 
 clear; clc; close all;
+set(0, 'DefaultFigureVisible', 'on');   % make sure plot windows are allowed to show
 
 
 %% ========================================================================
