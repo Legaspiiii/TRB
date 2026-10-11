@@ -18,16 +18,14 @@
 %    axial   = along the shaft (z, the spin axis)
 %    lateral = sideways, perpendicular to the shaft (x and y)
 %
-%  Plots (4 total):
+%  Plots (2 total):
 %    Plot 1 - Lateral force vs RPM
 %    Plot 2 - Axial force vs RPM
-%    Plot 3 - Lateral acceleration vs frequency
-%    Plot 4 - Axial acceleration vs frequency
 %
 %  How to use:
 %    1. Edit SECTION 1 only.
 %    2. Run the script.
-%    3. Read the printed summary and the 4 plots.
+%    3. Read the printed summary and the 2 plots.
 %  ========================================================================
 
 clear; clc; close all;
@@ -44,10 +42,9 @@ spin_up_time_s   = 10;      % [s] time to go from 0 to max speed
 spin_down_time_s = 10;      % [s] time to go from max speed back to 0
 
 % ------------------------------------------------------------------------
-% 1B. REFERENCE POINT AND STRUCTURE
+% 1B. REFERENCE POINT
 % ------------------------------------------------------------------------
-reference_position_m = 0;   % [m]  position along the shaft (z) where total moments are reported
-structure_mass_kg    = 50;  % [kg] total mass being shaken (whole assembly + frame), for acceleration
+reference_position_m = 0;   % [m] position along the shaft (z) where total moments are reported
 
 % ------------------------------------------------------------------------
 % 1C. WHEEL 1
@@ -128,7 +125,7 @@ include_bearing_runout = true;   % true  = add bearing runout on top of eccentri
                                  % false = eccentricity was measured on the assembled part
 bearing_kick_ratio     = 0.01;   % [-] strength of each bearing kick as a fraction of the shake (0.01 = 1%)
 
-save_plots  = true;                        % save the 4 plots as PNG files
+save_plots  = true;                        % save the 2 plots as PNG files
 plot_folder = 'Induced_Vibration_Plots';   % folder the PNG files go into
 
 
@@ -167,7 +164,6 @@ part_colors  = [0.00 0.45 0.74;
                 0.85 0.33 0.10;
                 0.47 0.67 0.19];
 part_lines   = {'-', '-.', '--'};
-part_markers = {'o', 's', 'd'};
 
 
 %% ========================================================================
@@ -256,11 +252,6 @@ total_moment_rss_Nm    = sqrt(sum(rock_Nm .^ 2 + (cm_distance_m .* shake_N) .^ 2
                        + number_of_kicks * (bearing_mid_distance_m .* kick_lateral_each_N) .^ 2));
 net_twist_Nm           = abs(sum(part_spin_direction .* part_Izz_kgm2 .* part_max_speed_rad_s)) / ramp_time_s;
 
-% ---- Accelerations of the structure (rigid body: acceleration = force / mass) ----
-g_to_m_s2 = 9.80665;
-total_lateral_accel_g = total_lateral_worst_N / structure_mass_kg / g_to_m_s2;
-total_axial_accel_g   = total_axial_worst_N   / structure_mass_kg / g_to_m_s2;
-
 
 %% ========================================================================
 %  SECTION 5: LOAD ON EACH BEARING  (worst case at max speed)
@@ -314,8 +305,8 @@ end
 
 line_text = repmat('=', 1, 78);
 fprintf('%s\n INDUCED VIBRATION ANALYSIS - SUMMARY\n%s\n', line_text, line_text);
-fprintf('Bearing runout included: %d    Bearing kick ratio: %.1f%%    Structure mass: %.1f kg\n', ...
-    include_bearing_runout, 100 * bearing_kick_ratio, structure_mass_kg);
+fprintf('Bearing runout included: %d    Bearing kick ratio: %.1f%%\n', ...
+    include_bearing_runout, 100 * bearing_kick_ratio);
 
 fprintf('\n--- 1. EACH PART AT MAX SPEED ---------------------------------------------------\n');
 fprintf('%-28s %12s %12s %12s\n', '', part_names{1}, part_names{2}, part_names{3});
@@ -343,8 +334,6 @@ fprintf('%-34s %14.4g %14.4g\n', 'Lateral force [N]',             total_lateral_
 fprintf('%-34s %14.4g %14.4g\n', 'Axial force [N]',               total_axial_worst_N,   total_axial_rss_N);
 fprintf('%-34s %14.4g %14.4g\n', 'Moment at reference [N*m]',     total_moment_worst_Nm, total_moment_rss_Nm);
 fprintf('%-34s %14.4g\n',        'Net twist during ramps [N*m]',  net_twist_Nm);
-fprintf('%-34s %14.4g\n',        'Lateral acceleration [g]',      total_lateral_accel_g);
-fprintf('%-34s %14.4g\n',        'Axial acceleration [g]',        total_axial_accel_g);
 
 fprintf('\n--- 4. LOAD ON EACH BEARING (worst case) ----------------------------------------\n');
 fprintf('%-28s %12s %12s %12s\n', '', part_names{1}, part_names{2}, part_names{3});
@@ -369,12 +358,11 @@ fprintf('  1. Rigid mounting: no structural resonance amplification.\n');
 fprintf('  2. Eccentricity, runout and tilt come from tolerances, not measurements.\n');
 fprintf('  3. Imbalance loads grow with speed squared.\n');
 fprintf('  4. Bearing kicks are estimated: %.1f%% of the shake each, axial = lateral x tan(cup angle).\n', 100 * bearing_kick_ratio);
-fprintf('  5. Acceleration = force / structure mass (whole assembly moves as one rigid body).\n');
 fprintf('%s\n', line_text);
 
 
 %% ========================================================================
-%  SECTION 9: PLOTS  (4 plots, one graph each)
+%  SECTION 9: PLOTS  (2 plots, one graph each)
 %  ========================================================================
 
 speed_scale   = linspace(0, 1.2, 121);                          % 0 to 120% of max speed
@@ -421,72 +409,16 @@ title('Plot 2: Axial force vs RPM');
 legend([part_names, {'Total (worst case)', 'Total (random phase)', 'Operating speed'}], 'Location', 'northwest');
 
 % ------------------------------------------------------------------------
-% PLOTS 3 and 4: ACCELERATION vs FREQUENCY  (at max speed)
-%   Each vertical line is one vibration source:
-%   height = its acceleration of the structure, position = its frequency.
-% ------------------------------------------------------------------------
-accel_lateral_g = zeros(number_of_parts, 1 + number_of_kicks);   % columns: 1x, then the 4 kicks
-accel_axial_g   = zeros(number_of_parts, 1 + number_of_kicks);
-source_freq_hz  = zeros(number_of_parts, 1 + number_of_kicks);
-for p = 1:number_of_parts
-    source_freq_hz(p, :)  = [1, kick_harmonic(p, :)] * part_max_speed_hz(p);
-    accel_lateral_g(p, :) = [shake_N(p), kick_lateral_each_N(p) * ones(1, number_of_kicks)] / structure_mass_kg / g_to_m_s2;
-    accel_axial_g(p, :)   = [0,          kick_axial_each_N(p)   * ones(1, number_of_kicks)] / structure_mass_kg / g_to_m_s2;
-end
-source_labels = [{'1x'}, kick_names];
-
-accel_data   = {accel_lateral_g, accel_axial_g};
-accel_titles = {'Plot 3: Lateral acceleration vs frequency (at max speed)', ...
-                'Plot 4: Axial acceleration vs frequency (at max speed)'};
-accel_names  = {'Plot 3 - Lateral Acceleration vs Frequency', 'Plot 4 - Axial Acceleration vs Frequency'};
-accel_ylabel = {'Lateral acceleration [g]', 'Axial acceleration [g]'};
-accel_figures = cell(1, 2);
-
-for s = 1:2
-    accel_figures{s} = figure('Name', accel_names{s}, 'NumberTitle', 'off', 'Color', 'w');
-    hold on; grid on; box on;
-    data = accel_data{s};
-    bottom = min(data(data > 0)) / 10;          % floor for the log scale
-    legend_handles = cell(1, number_of_parts);   % one marker per part, for the legend
-    labeled_freqs = [];
-    for p = 1:number_of_parts
-        for k = 1:size(data, 2)
-            if data(p, k) <= 0
-                continue;
-            end
-            f = source_freq_hz(p, k);
-            plot([f f], [bottom data(p, k)], '-', 'Color', part_colors(p, :), 'LineWidth', 2);
-            marker_handle = plot(f, data(p, k), part_markers{p}, 'MarkerSize', 8, ...
-                 'MarkerFaceColor', part_colors(p, :), 'MarkerEdgeColor', 'k');
-            legend_handles{p} = marker_handle;
-            if isempty(labeled_freqs) || all(abs(labeled_freqs - f) > 0.01 * f)
-                text(f, data(p, k) * 1.5, ['  ', source_labels{k}], 'FontSize', 8, 'Rotation', 90);
-                labeled_freqs(end + 1) = f;
-            end
-        end
-    end
-    set(gca, 'YScale', 'log');
-    ylim([bottom, max(data(:)) * 20]);
-    xlim([0, 1.1 * max(source_freq_hz(:))]);
-    xlabel('Frequency [Hz]');
-    ylabel(accel_ylabel{s});
-    title(accel_titles{s});
-    has_data = ~cellfun(@isempty, legend_handles);
-    legend([legend_handles{has_data}], part_names(has_data), 'Location', 'eastoutside');
-end
-
-% ------------------------------------------------------------------------
-% SAVE THE 4 PLOTS
+% SAVE THE 2 PLOTS
 % ------------------------------------------------------------------------
 if save_plots
     if ~exist(plot_folder, 'dir')
         mkdir(plot_folder);
     end
-    all_figures = {figure_1, figure_2, accel_figures{1}, accel_figures{2}};
-    all_files   = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png', ...
-                   'Plot_3_Lateral_Acceleration_vs_Frequency.png', 'Plot_4_Axial_Acceleration_vs_Frequency.png'};
+    all_figures = {figure_1, figure_2};
+    all_files   = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
     drawnow;
-    for i = 1:4
+    for i = 1:2
         if ishghandle(all_figures{i})
             print(all_figures{i}, fullfile(plot_folder, all_files{i}), '-dpng', '-r150');
         else
