@@ -363,82 +363,7 @@ fprintf('%s\n', line_text);
 
 
 %% ========================================================================
-%  SECTION 9: PLOTS  (2 plots, one graph each)
-%  ========================================================================
-
-speed_scale   = linspace(0, 1.2, 121);                          % 0 to 120% of max speed
-arm_axis_rpm  = speed_scale * part_max_speed_rpm(arm_index);    % x-axis for plots 1 and 2
-wheel_ratio   = part_max_speed_rpm(1) / part_max_speed_rpm(arm_index);
-x_label_text  = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', wheel_ratio);
-
-% ------------------------------------------------------------------------
-% PLOT 1: LATERAL FORCE vs RPM
-% ------------------------------------------------------------------------
-figure_1 = figure('Name', 'Plot 1 - Lateral Force vs RPM', 'NumberTitle', 'off', 'Color', 'w', ...
-                  'Visible', 'on', 'WindowStyle', 'normal');
-hold on; grid on; box on;
-for p = 1:number_of_parts
-    plot(arm_axis_rpm, lateral_force_N(p) * speed_scale .^ 2, part_lines{p}, ...
-         'Color', part_colors(p, :), 'LineWidth', 2);
-end
-plot(arm_axis_rpm, total_lateral_worst_N * speed_scale .^ 2, 'k-',  'LineWidth', 2.5);
-plot(arm_axis_rpm, total_lateral_rss_N   * speed_scale .^ 2, 'k--', 'LineWidth', 2);
-plot([1 1] * part_max_speed_rpm(arm_index), [0 1.44 * total_lateral_worst_N], 'k:', 'LineWidth', 1.5);
-plot(part_max_speed_rpm(arm_index), total_lateral_worst_N, 'ko', 'MarkerFaceColor', 'k');
-text(part_max_speed_rpm(arm_index), total_lateral_worst_N, sprintf('   %.3g N', total_lateral_worst_N), 'FontSize', 10);
-xlabel(x_label_text);
-ylabel('Lateral force [N]');
-title('Plot 1: Lateral force vs RPM');
-legend([part_names, {'Total (worst case)', 'Total (random phase)', 'Operating speed'}], 'Location', 'northwest');
-
-% ------------------------------------------------------------------------
-% PLOT 2: AXIAL FORCE vs RPM
-% ------------------------------------------------------------------------
-figure_2 = figure('Name', 'Plot 2 - Axial Force vs RPM', 'NumberTitle', 'off', 'Color', 'w', ...
-                  'Visible', 'on', 'WindowStyle', 'normal');
-hold on; grid on; box on;
-for p = 1:number_of_parts
-    plot(arm_axis_rpm, axial_force_N(p) * speed_scale .^ 2, part_lines{p}, ...
-         'Color', part_colors(p, :), 'LineWidth', 2);
-end
-plot(arm_axis_rpm, total_axial_worst_N * speed_scale .^ 2, 'k-',  'LineWidth', 2.5);
-plot(arm_axis_rpm, total_axial_rss_N   * speed_scale .^ 2, 'k--', 'LineWidth', 2);
-plot([1 1] * part_max_speed_rpm(arm_index), [0 1.44 * total_axial_worst_N], 'k:', 'LineWidth', 1.5);
-plot(part_max_speed_rpm(arm_index), total_axial_worst_N, 'ko', 'MarkerFaceColor', 'k');
-text(part_max_speed_rpm(arm_index), total_axial_worst_N, sprintf('   %.3g N', total_axial_worst_N), 'FontSize', 10);
-xlabel(x_label_text);
-ylabel('Axial force [N]');
-title('Plot 2: Axial force vs RPM');
-legend([part_names, {'Total (worst case)', 'Total (random phase)', 'Operating speed'}], 'Location', 'northwest');
-
-% ------------------------------------------------------------------------
-% SAVE THE 2 PLOTS
-% ------------------------------------------------------------------------
-if save_plots
-    if ~exist(plot_folder, 'dir')
-        mkdir(plot_folder);
-    end
-    all_figures = {figure_1, figure_2};
-    all_files   = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
-    drawnow;
-    for i = 1:2
-        if ishghandle(all_figures{i})
-            print(all_figures{i}, fullfile(plot_folder, all_files{i}), '-dpng', '-r150');
-            fprintf('Saved plot: %s\n', fullfile(pwd, plot_folder, all_files{i}));
-        else
-            warning('%s was closed before it could be saved.', all_files{i});
-        end
-    end
-end
-
-% Bring the plot windows to the front
-drawnow;
-if ishghandle(figure_2), figure(figure_2); end
-if ishghandle(figure_1), figure(figure_1); end
-
-
-%% ========================================================================
-%  SECTION 10: KEY RESULTS  (printed last so it is the first thing you see)
+%  SECTION 9: KEY RESULTS  (printed before the plots, so you always get them)
 %  ========================================================================
 
 [~, biggest_part] = max(lateral_force_N);
@@ -456,3 +381,62 @@ fprintf(' Biggest single source of lateral force:          %s (%.3g N)\n', ...
     part_names{biggest_part}, lateral_force_N(biggest_part));
 fprintf(' All sanity checks passed:                        %s\n', check_labels{(check_speed && check_bearings && check_momentum) + 1});
 fprintf('%s\n', line_text);
+
+
+%% ========================================================================
+%  SECTION 10: PLOTS  (2 plots, one graph each)
+%  ------------------------------------------------------------------------
+%  Plot 1: lateral force vs RPM      Plot 2: axial force vs RPM
+%  If anything goes wrong while plotting, the error is printed and the
+%  results above are not affected.
+%  ========================================================================
+
+speed_scale  = linspace(0, 1.2, 121);                          % 0 to 120% of max speed
+arm_axis_rpm = speed_scale * part_max_speed_rpm(arm_index);    % x-axis
+wheel_ratio  = part_max_speed_rpm(1) / part_max_speed_rpm(arm_index);
+x_label_text = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', wheel_ratio);
+legend_text  = [part_names, {'Total (worst case)', 'Total (typical)'}];
+
+plot_forces = {lateral_force_N, axial_force_N};
+plot_worst  = [total_lateral_worst_N, total_axial_worst_N];
+plot_rss    = [total_lateral_rss_N,   total_axial_rss_N];
+plot_titles = {'Plot 1: Lateral force vs RPM', 'Plot 2: Axial force vs RPM'};
+plot_ylabel = {'Lateral force [N]', 'Axial force [N]'};
+plot_files  = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
+
+for n = 1:2
+    try
+        figure(n);
+        clf;
+        hold on;
+        grid on;
+        box on;
+        force_at_max = plot_forces{n};
+        for p = 1:number_of_parts
+            plot(arm_axis_rpm, force_at_max(p) * speed_scale .^ 2, part_lines{p}, ...
+                 'Color', part_colors(p, :), 'LineWidth', 2);
+        end
+        plot(arm_axis_rpm, plot_worst(n) * speed_scale .^ 2, 'k-',  'LineWidth', 2.5);
+        plot(arm_axis_rpm, plot_rss(n)   * speed_scale .^ 2, 'k--', 'LineWidth', 2);
+        plot(part_max_speed_rpm(arm_index), plot_worst(n), 'ko', 'MarkerFaceColor', 'k');
+        text(part_max_speed_rpm(arm_index), plot_worst(n), sprintf('%.3g N at max speed   ', plot_worst(n)), ...
+             'HorizontalAlignment', 'right');
+        xlabel(x_label_text);
+        ylabel(plot_ylabel{n});
+        title(plot_titles{n});
+        legend(legend_text, 'Location', 'northwest');
+        hold off;
+        drawnow;
+
+        if save_plots
+            if ~exist(plot_folder, 'dir')
+                mkdir(plot_folder);
+            end
+            saveas(gcf, fullfile(plot_folder, plot_files{n}));
+            fprintf('Saved plot: %s\n', fullfile(pwd, plot_folder, plot_files{n}));
+        end
+    catch
+        fprintf('\nPLOT %d PROBLEM: %s\n', n, lasterr);
+        fprintf('The results above are still correct. Send this message to get the plot fixed.\n');
+    end
+end
