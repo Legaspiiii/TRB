@@ -123,7 +123,8 @@ wheel2_bearing_load_offset_mm    = 5;      % [mm]   load center offset "a" (0 if
 include_bearing_runout = true;   % true  = add bearing runout on top of eccentricity
                                  % false = eccentricity was measured on the assembled part
 bearing_kick_ratio     = 0.01;   % [-]   bearing kick strength as a fraction of imbalance (0.01 = 1%)
-rock_phase_deg         = 0;      % [deg] angle between heavy spot and tilt direction (0 = worst case)
+rock_phase_deg         = 0;      % [deg] angle between heavy spot and tilt direction (unknown; only changes
+                                 %       the time plots - the worst-case numbers always assume full alignment)
 stiffness_uncertainty  = 0.20;   % [-]   +/- band on whirl frequencies (0.20 = +/-20%)
 campbell_speed_factor  = 1.2;    % [-]   Campbell plot x-axis goes to this x max speed
 points_per_cycle       = 20;     % [-]   time samples per cycle of the fastest vibration
