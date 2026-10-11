@@ -48,6 +48,8 @@ spin_up_time_s       = 10;     % [s] time to go from 0 to max speed   (for the t
 spin_down_time_s     = 10;     % [s] time to go from max speed to 0    (for the twist)
 reference_position_m = 0;      % [m] point along the shaft where total moments are reported
 bearing_kick_ratio   = 0.01;   % [-] each bearing harmonic = this fraction of the shake force (0.01 = 1%)
+report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wheels follow at the same
+                                  %       ratio as the max speeds). Use [] for none.
 
 % ------------------------------------------------------------------------
 % 1B. WHEEL 1
@@ -241,6 +243,22 @@ fprintf(' %-46s %12.4g  N*m\n', 'Net twist during spin-up/down',           net_t
 fprintf(' %-46s %s %.3g, %s %.3g, %s %.3g  N*m\n', 'Twist on each motor mount during ramps', ...
     rotor_names{1}, rotor_twist_Nm(1), rotor_names{2}, rotor_twist_Nm(2), rotor_names{3}, rotor_twist_Nm(3));
 fprintf('%s\n', line_text);
+
+% ---- Results at other speeds ----
+% Every force and moment grows with speed squared, so at a lower speed:
+%   value(new speed) = value(max speed) x (new speed / max speed)^2
+% Bearing frequencies scale with speed:  freq(new) = freq(max) x (new / max)
+if ~isempty(report_arm_rpm)
+    fprintf('\n RESULTS AT OTHER SPEEDS  (worst case; wheels follow the arm at the same speed ratio)\n');
+    fprintf(' %10s %10s %10s %14s %14s %14s\n', 'Arm RPM', 'Wheel 1', 'Wheel 2', 'Lateral [N]', 'Axial [N]', 'Moment [N*m]');
+    for i = 1:numel(report_arm_rpm)
+        speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
+        fprintf(' %10.1f %10.1f %10.1f %14.4g %14.4g %14.4g\n', report_arm_rpm(i), ...
+            max_speed_rpm(1) * speed_ratio, max_speed_rpm(3) * speed_ratio, ...
+            total_lateral_N * speed_ratio ^ 2, total_axial_N * speed_ratio ^ 2, total_moment_Nm * speed_ratio ^ 2);
+    end
+    fprintf('%s\n', line_text);
+end
 
 
 %% ========================================================================
