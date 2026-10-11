@@ -22,6 +22,12 @@
 %       Motor reaction torque on the shaft during spin-up / spin-down:
 %       Mz = Izz x speed / ramp time
 %
+%  Assumptions (state these in your report):
+%    - Hard-mounted: loads are calculated as if bolted to a rigid base.
+%    - Tilt and bearing_kick_ratio are estimates (no test data).
+%    - Not included: structural resonance, motor torque ripple,
+%      test-based bearing amplitudes.
+%
 %  Directions:
 %    lateral = sideways (perpendicular to the shaft)
 %    axial   = along the shaft (spin axis)
@@ -392,6 +398,8 @@ for part = 1:4
     elseif part == 4
         fprintf('\n   Mz TOTAL is the NET twist: the wheels twist opposite to the arm, so they cancel.\n');
         fprintf('   Each motor mount still feels its own twist (see PART 1 and PART 2).\n');
+        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt and bearing kick ratio are estimates.\n');
+        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, test-based bearing amplitudes.\n');
         if ~isempty(report_arm_rpm)
             fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; every value grows with speed squared)\n');
             fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
