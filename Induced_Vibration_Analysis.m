@@ -4,18 +4,17 @@
 %  and their bearings
 %
 %  Sources:
-%    1. IMBALANCE (each rotor)
-%       - Shake : center of mass is off the spin axis  -> lateral force
-%                 F = mass x eccentricity x speed^2
-%       - Rock  : rotor sits slightly tilted           -> moment
-%                 M = (Izz - I_perpendicular) x tilt x speed^2
-%       Both happen once per revolution (1x RPM).
+%    1. IMBALANCE (each rotor), once per revolution (1x RPM)
+%       - Static imbalance  : center of mass is off the spin axis -> lateral force
+%                             F = mass x eccentricity x speed^2
+%       - Dynamic imbalance : rotor sits slightly tilted          -> moment
+%                             M = (Izz - I_perpendicular) x tilt x speed^2
 %
 %    2. BEARINGS (each rotor's tapered roller bearing pair)
 %       Rollers passing over tiny bumps on the rings give small kicks at
 %       harmonics of the rotor's RPM (cage, cup pass, cone pass, roller spin).
 %       - Harmonic numbers come from the bearing geometry (exact).
-%       - Kick strength = bearing_kick_ratio x shake force (estimate).
+%       - Kick strength = bearing_kick_ratio x static imbalance force (estimate).
 %       - Tapered rollers push at the cup angle, so every kick also has an
 %         axial part: axial = lateral x tan(cup angle).
 %
@@ -50,7 +49,7 @@ fprintf('Calculating...\n');
 spin_up_time_s       = 10;     % [s] time to go from 0 to max speed   (for the twist)
 spin_down_time_s     = 10;     % [s] time to go from max speed to 0    (for the twist)
 reference_position_m = 0;      % [m] point along the shaft where total moments are reported
-bearing_kick_ratio   = 0.01;   % [-] each bearing harmonic = this fraction of the shake force (0.01 = 1%)
+bearing_kick_ratio   = 0.01;   % [-] each bearing harmonic = this fraction of the static imbalance force (0.01 = 1%)
 report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wheels follow at the same
                                   %       ratio as the max speeds). Use [] for none.
 
@@ -157,11 +156,14 @@ ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
 
 
 %% ========================================================================
-%  SECTION 4: IMBALANCE  (1x RPM)
+%  SECTION 4: STATIC AND DYNAMIC IMBALANCE  (1x RPM)
 %  ========================================================================
 
-shake_N = mass_kg .* eccentricity_m .* speed_rad_s .^ 2;                          % lateral force
-rock_Nm = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad .* speed_rad_s .^ 2;  % moment
+% Static imbalance: center of mass off the spin axis -> lateral force
+static_imbalance_force_N = mass_kg .* eccentricity_m .* speed_rad_s .^ 2;
+
+% Dynamic imbalance: rotor tilted on the spin axis -> moment
+dynamic_imbalance_moment_Nm = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad .* speed_rad_s .^ 2;
 
 
 %% ========================================================================
@@ -186,7 +188,7 @@ for r = 1:number_of_rotors
 end
 
 bearing_frequency_hz  = bearing_harmonic .* (speed_hz');                        % [Hz] rows = rotors
-bearing_lateral_each_N = bearing_kick_ratio * shake_N;                           % one harmonic, sideways
+bearing_lateral_each_N = bearing_kick_ratio * static_imbalance_force_N;                           % one harmonic, sideways
 bearing_axial_each_N   = bearing_lateral_each_N .* tand(bearing_cup_angle_deg);  % one harmonic, along the shaft
 bearing_lateral_N      = number_of_harmonics * bearing_lateral_each_N;          % all 4 harmonics lined up
 bearing_axial_N        = number_of_harmonics * bearing_axial_each_N;
@@ -198,9 +200,9 @@ bearing_axial_N        = number_of_harmonics * bearing_axial_each_N;
 %  Worst case = every peak lines up at the same moment (safe design value).
 %  ========================================================================
 
-rotor_lateral_N = shake_N + bearing_lateral_N;                 % lateral force of each rotor
+rotor_lateral_N = static_imbalance_force_N + bearing_lateral_N;   % lateral force of each rotor
 rotor_axial_N   = bearing_axial_N;                             % axial force of each rotor (bearings only)
-rotor_moment_Nm = rock_Nm + lever_arm_m .* rotor_lateral_N;    % rock + force x distance to the reference
+rotor_moment_Nm = dynamic_imbalance_moment_Nm + lever_arm_m .* rotor_lateral_N;   % dynamic imbalance + force x distance
 rotor_twist_Nm  = Izz_kgm2 .* speed_rad_s / ramp_time_s;       % twist during spin-up / spin-down
 
 total_lateral_N = sum(rotor_lateral_N);
@@ -219,10 +221,10 @@ line_text = repmat('=', 1, 92);
 fprintf('\n%s\n DETAIL 1: EACH ROTOR AT MAX SPEED\n%s\n', line_text, line_text);
 fprintf('%-34s %14s %14s %14s\n', '', rotor_names{1}, rotor_names{2}, rotor_names{3});
 fprintf('%-34s %14.0f %14.0f %14.0f\n', 'Speed [RPM]',                         max_speed_rpm .* spin_direction);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Imbalance lateral force [N]',          shake_N);
+fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Static imbalance force [N]',           static_imbalance_force_N);
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Bearing lateral force [N]',            bearing_lateral_N);
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Bearing axial force [N]',              bearing_axial_N);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Rock moment from tilt [N*m]',          rock_Nm);
+fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Dynamic imbalance moment [N*m]',       dynamic_imbalance_moment_Nm);
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Total moment at reference [N*m]',      rotor_moment_Nm);
 fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Twist during spin-up/down [N*m]',      rotor_twist_Nm);
 
@@ -230,7 +232,7 @@ fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Twist during spin-up/down [N*m]',      
 fprintf('\n%s\n DETAIL 2: EVERY DISTURBANCE AT MAX SPEED  (frequency = harmonic x RPM / 60)\n%s\n', line_text, line_text);
 fprintf('%-9s %-24s %10s %12s %14s %14s\n', 'Rotor', 'Source', 'Harmonic', 'Freq [Hz]', 'Lateral [N]', 'Axial [N]');
 for r = 1:number_of_rotors
-    fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, 'Imbalance (1x)', 1, speed_hz(r), shake_N(r), 0);
+    fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, 'Static imbalance (1x)', 1, speed_hz(r), static_imbalance_force_N(r), 0);
     for k = 1:number_of_harmonics
         fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, ['Bearing ', harmonic_names{k}], ...
             bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
@@ -314,7 +316,8 @@ final_axial_force_N      = total_axial_N;
 final_moment_Nm          = total_moment_Nm;
 final_net_twist_Nm       = net_twist_Nm;
 final_motor_mount_twist_Nm = rotor_twist_Nm;
-final_imbalance_lateral_N  = sum(shake_N);
+final_static_imbalance_N   = sum(static_imbalance_force_N);
+final_dynamic_imbalance_Nm = sum(dynamic_imbalance_moment_Nm);
 final_bearing_lateral_N    = sum(bearing_lateral_N);
 final_bearing_axial_N      = sum(bearing_axial_N);
 
@@ -334,9 +337,11 @@ fprintf('        net on the structure            %12.4g  N*m\n', final_net_twist
 fprintf('        on each motor mount             %s %.3g | %s %.3g | %s %.3g  N*m\n', ...
     rotor_names{1}, final_motor_mount_twist_Nm(1), rotor_names{2}, final_motor_mount_twist_Nm(2), ...
     rotor_names{3}, final_motor_mount_twist_Nm(3));
-fprintf('\n   WHERE THE LATERAL FORCE COMES FROM\n');
-fprintf('        imbalance (wheels + arm)        %12.4g  N\n', final_imbalance_lateral_N);
-fprintf('        bearings  (all harmonics)       %12.4g  N   (axial: %.4g N)\n', final_bearing_lateral_N, final_bearing_axial_N);
+fprintf('\n   WHERE IT COMES FROM (wheels + arm combined)\n');
+fprintf('        static imbalance force          %12.4g  N     (part of the lateral force)\n', final_static_imbalance_N);
+fprintf('        bearing harmonics force         %12.4g  N     (part of the lateral force)\n', final_bearing_lateral_N);
+fprintf('        bearing harmonics axial force   %12.4g  N     (all of the axial force)\n', final_bearing_axial_N);
+fprintf('        dynamic imbalance moment        %12.4g  N*m   (part of the moment)\n', final_dynamic_imbalance_Nm);
 
 if ~isempty(report_arm_rpm)
     fprintf('\n   AT OTHER SPEEDS  (wheels follow the arm; every value grows with speed squared)\n');
