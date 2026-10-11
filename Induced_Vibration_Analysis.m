@@ -29,10 +29,12 @@
 %  How to use:
 %    1. Edit SECTION 1 only (your numbers).
 %    2. Run the script.
-%    3. Your answer is the "YOUR ANSWER" box at the very bottom of the
-%       Command Window: Fx, Fy, Fz, Mx, My, Mz for each rotor and the total.
-%       Everything above it is supporting detail. The same numbers are
-%       saved as final_Fx_N ... final_Mz_Nm in the Workspace.
+%    3. The Command Window prints Fx, Fy, Fz, Mx, My, Mz in four parts:
+%         PART 1  ARM               (imbalance only)
+%         PART 2  MOMENTUM WHEELS   (imbalance only)
+%         PART 3  BEARINGS          (harmonics only)
+%         PART 4  ALL TOGETHER      <- the final answer, at the very bottom
+%       The final answer is also saved as final_Fx_N ... final_Mz_Nm.
 %  ========================================================================
 
 clear; clc;
@@ -195,57 +197,76 @@ bearing_axial_N        = number_of_harmonics * bearing_axial_each_N;
 
 
 %% ========================================================================
-%  SECTION 6: TOTALS PER ROTOR AND FOR THE WHOLE SYSTEM  (worst case)
+%  SECTION 6: FORCES AND MOMENTS OF EACH SOURCE  (worst case, max speed)
 %  ------------------------------------------------------------------------
+%  Axes: z = along the shaft (spin axis), x and y = sideways.
+%
+%  Fx, Fy : sideways force. It ROTATES with the rotor, so x and y see the
+%           same peak a quarter turn apart  ->  peak Fx = peak Fy.
+%  Fz     : force along the shaft (only the tapered bearings make this).
+%  Mx, My : tipping moment at the reference point. It also rotates, so
+%           peak Mx = peak My. = own moment + sideways force x distance.
+%  Mz     : twist about the shaft (motor reaction, only during ramps).
+%
+%  Each source is stored as 6 numbers: [Fx; Fy; Fz; Mx; My; Mz]
 %  Worst case = every peak lines up at the same moment (safe design value).
 %  ========================================================================
 
-rotor_lateral_N = static_imbalance_force_N + bearing_lateral_N;   % lateral force of each rotor
-rotor_axial_N   = bearing_axial_N;                             % axial force of each rotor (bearings only)
-rotor_moment_Nm = dynamic_imbalance_moment_Nm + lever_arm_m .* rotor_lateral_N;   % dynamic imbalance + force x distance
-rotor_twist_Nm  = Izz_kgm2 .* speed_rad_s / ramp_time_s;       % twist during spin-up / spin-down
-
-total_lateral_N = sum(rotor_lateral_N);
-total_axial_N   = sum(rotor_axial_N);
-total_moment_Nm = sum(rotor_moment_Nm);
-net_twist_Nm    = abs(sum(spin_direction .* Izz_kgm2 .* speed_rad_s)) / ramp_time_s;   % wheels cancel the arm
-
-
-%% ========================================================================
-%  SECTION 7: PRINTED RESULTS
-%  ========================================================================
-
-line_text = repmat('=', 1, 92);
-
-% ---- Table 1: each rotor at max speed ----
-fprintf('\n%s\n DETAIL 1: EACH ROTOR AT MAX SPEED\n%s\n', line_text, line_text);
-fprintf('%-34s %14s %14s %14s\n', '', rotor_names{1}, rotor_names{2}, rotor_names{3});
-fprintf('%-34s %14.0f %14.0f %14.0f\n', 'Speed [RPM]',                         max_speed_rpm .* spin_direction);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Static imbalance force [N]',           static_imbalance_force_N);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Bearing lateral force [N]',            bearing_lateral_N);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Bearing axial force [N]',              bearing_axial_N);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Dynamic imbalance moment [N*m]',       dynamic_imbalance_moment_Nm);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Total moment at reference [N*m]',      rotor_moment_Nm);
-fprintf('%-34s %14.4g %14.4g %14.4g\n', 'Twist during spin-up/down [N*m]',      rotor_twist_Nm);
-
-% ---- Table 2: every disturbance with its frequency (harmonics of RPM) ----
-fprintf('\n%s\n DETAIL 2: EVERY DISTURBANCE AT MAX SPEED  (frequency = harmonic x RPM / 60)\n%s\n', line_text, line_text);
-fprintf('%-9s %-24s %10s %12s %14s %14s\n', 'Rotor', 'Source', 'Harmonic', 'Freq [Hz]', 'Lateral [N]', 'Axial [N]');
+% ---- Imbalance of each rotor (wheels and arm) ----
+imbalance_loads = zeros(6, number_of_rotors);          % columns = Wheel 1, Arm, Wheel 2
 for r = 1:number_of_rotors
-    fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, 'Static imbalance (1x)', 1, speed_hz(r), static_imbalance_force_N(r), 0);
-    for k = 1:number_of_harmonics
-        fprintf('%-9s %-24s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, ['Bearing ', harmonic_names{k}], ...
-            bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
-    end
+    imbalance_moment = dynamic_imbalance_moment_Nm(r) + lever_arm_m(r) * static_imbalance_force_N(r);
+    imbalance_loads(:, r) = [static_imbalance_force_N(r);     % Fx
+                             static_imbalance_force_N(r);     % Fy
+                             0;                               % Fz (imbalance does not push along the shaft)
+                             imbalance_moment;                % Mx
+                             imbalance_moment;                % My
+                             spin_direction(r) * Izz_kgm2(r) * speed_rad_s(r) / ramp_time_s];  % Mz (signed twist)
 end
 
-fprintf('(Details above. YOUR ANSWER is printed at the very bottom.)\n');
+% ---- Bearings of each rotor (all 4 harmonics lined up) ----
+bearing_loads = zeros(6, number_of_rotors);            % columns = Wheel 1 bearings, Arm bearings, Wheel 2 bearings
+for r = 1:number_of_rotors
+    bearing_moment = lever_arm_m(r) * bearing_lateral_N(r);
+    bearing_loads(:, r) = [bearing_lateral_N(r);    % Fx
+                           bearing_lateral_N(r);    % Fy
+                           bearing_axial_N(r);      % Fz
+                           bearing_moment;          % Mx
+                           bearing_moment;          % My
+                           0];                      % Mz (bearing drag is internal: motor and bearings cancel)
+end
+
+% ---- Group the columns ----
+wheel_columns = [1 3];
+arm_loads     = imbalance_loads(:, arm_index);
+wheel_loads   = imbalance_loads(:, wheel_columns);
+wheels_total  = sum(wheel_loads, 2);                   % Mz adds with sign (both wheels spin the same way)
+bearings_total = sum(bearing_loads, 2);
+all_total     = arm_loads + wheels_total + bearings_total;
+all_total(6)  = abs(all_total(6));                     % net twist (wheels cancel the arm)
+
+% Show twist as a size (positive) everywhere except where noted
+arm_loads(6)     = abs(arm_loads(6));
+wheel_loads(6,:) = abs(wheel_loads(6,:));
+wheels_total(6)  = abs(wheels_total(6));
+
+% ---- Final answer saved in the Workspace: [Fx Fy Fz Mx My Mz] ----
+final_arm_loads      = arm_loads';
+final_wheel_1_loads  = wheel_loads(:, 1)';
+final_wheel_2_loads  = wheel_loads(:, 2)';
+final_bearing_loads  = bearings_total';
+final_Fx_N  = all_total(1);
+final_Fy_N  = all_total(2);
+final_Fz_N  = all_total(3);
+final_Mx_Nm = all_total(4);
+final_My_Nm = all_total(5);
+final_Mz_Nm = all_total(6);
 
 
 %% ========================================================================
-%  SECTION 8: PLOTS
+%  SECTION 7: PLOTS
 %  ------------------------------------------------------------------------
-%  Plot 1: lateral force vs RPM      Plot 2: axial force vs RPM
+%  Plot 1: sideways force (Fx = Fy) vs RPM    Plot 2: axial force (Fz) vs RPM
 %  Every load grows with speed squared: load(speed) = load(max) x (speed/max)^2
 %  The wheels follow the arm, so the x-axis is arm speed.
 %  ========================================================================
@@ -256,17 +277,19 @@ if make_plots
     curve_shape    = speed_fraction .^ 2;
     x_label_text   = sprintf('Arm speed [RPM]    (wheel speed = %.2f x arm speed)', max_speed_rpm(1) / max_speed_rpm(arm_index));
 
-    plot_rotor_values = {rotor_lateral_N, rotor_axial_N};
-    plot_total_values = [total_lateral_N, total_axial_N];
-    plot_titles       = {'Plot 1: Lateral force vs RPM', 'Plot 2: Axial force vs RPM'};
-    plot_ylabels      = {'Lateral force [N]', 'Axial force [N]'};
-    plot_files        = {'Plot_1_Lateral_Force_vs_RPM.png', 'Plot_2_Axial_Force_vs_RPM.png'};
-    rotor_colors      = [0.00 0.45 0.74; 0.85 0.33 0.10; 0.47 0.67 0.19];
-    rotor_lines       = {'-', '-.', '--'};
+    plot_row     = [1, 3];                              % row 1 = Fx, row 3 = Fz
+    plot_titles  = {'Plot 1: Sideways force (Fx = Fy) vs RPM', 'Plot 2: Axial force (Fz) vs RPM'};
+    plot_ylabels = {'Fx = Fy [N]', 'Fz [N]'};
+    plot_files   = {'Plot_1_Fx_Fy_vs_RPM.png', 'Plot_2_Fz_vs_RPM.png'};
+    curve_names  = {'Arm', 'Wheel 1', 'Wheel 2', 'Bearings (all)', 'TOTAL'};
+    curve_colors = [0.85 0.33 0.10; 0.00 0.45 0.74; 0.47 0.67 0.19; 0.49 0.18 0.56; 0 0 0];
+    curve_lines  = {'-.', '-', '--', ':', '-'};
 
     for n = 1:2
         fprintf('Drawing plot %d...\n', n);
         try
+            row = plot_row(n);
+            curve_values = [arm_loads(row), wheel_loads(row, 1), wheel_loads(row, 2), bearings_total(row), all_total(row)];
             figure(n);
             clf;
             try
@@ -276,19 +299,21 @@ if make_plots
             hold on;
             grid on;
             box on;
-            rotor_values = plot_rotor_values{n};
-            for r = 1:number_of_rotors
-                plot(arm_axis_rpm, rotor_values(r) * curve_shape, rotor_lines{r}, ...
-                     'Color', rotor_colors(r, :), 'LineWidth', 2);
+            for c = 1:numel(curve_values)
+                line_width = 2;
+                if c == numel(curve_values)
+                    line_width = 3;
+                end
+                plot(arm_axis_rpm, curve_values(c) * curve_shape, curve_lines{c}, ...
+                     'Color', curve_colors(c, :), 'LineWidth', line_width);
             end
-            plot(arm_axis_rpm, plot_total_values(n) * curve_shape, 'k-', 'LineWidth', 2.5);
-            plot(max_speed_rpm(arm_index), plot_total_values(n), 'ko', 'MarkerFaceColor', 'k');
-            text(max_speed_rpm(arm_index), plot_total_values(n), sprintf('%.3g N at max speed   ', plot_total_values(n)), ...
+            plot(max_speed_rpm(arm_index), all_total(row), 'ko', 'MarkerFaceColor', 'k');
+            text(max_speed_rpm(arm_index), all_total(row), sprintf('%.3g N at max speed   ', all_total(row)), ...
                  'HorizontalAlignment', 'right');
             xlabel(x_label_text);
             ylabel(plot_ylabels{n});
             title(plot_titles{n});
-            legend([rotor_names, {'Total'}], 'Location', 'northwest');
+            legend(curve_names, 'Location', 'northwest');
             hold off;
             fprintf('Plot %d done.\n', n);
 
@@ -307,65 +332,75 @@ end
 
 
 %% ========================================================================
-%  SECTION 9: YOUR ANSWER  -  Fx, Fy, Fz, Mx, My, Mz
+%  SECTION 8: PRINTED RESULTS  -  ARM, WHEELS, BEARINGS, ALL TOGETHER
 %  ------------------------------------------------------------------------
-%  Axes:  z = along the shaft (spin axis),  x and y = sideways.
-%
-%  Fx, Fy : the lateral force ROTATES with each rotor, so it shows up in x
-%           and y as two sine waves with the SAME peak, a quarter turn apart.
-%           -> peak Fx = peak Fy = lateral force
-%  Fz     : axial force along the shaft (bearing harmonics)
-%  Mx, My : the tipping moment also rotates -> peak Mx = peak My = moment
-%           (dynamic imbalance + lateral force x distance to the reference)
-%  Mz     : twist about the shaft (only during spin-up / spin-down)
-%
-%  All values are PEAK amplitudes, worst case, at max speed.
-%  Printed last so it is at the bottom of the Command Window, and saved
-%  as final_ variables in the Workspace.
+%  Every part prints the same 6 rows: Fx, Fy, Fz, Mx, My, Mz
 %  ========================================================================
 
-final_Fx_N  = [rotor_lateral_N, total_lateral_N];      % [Wheel 1, Arm, Wheel 2, TOTAL]
-final_Fy_N  = [rotor_lateral_N, total_lateral_N];
-final_Fz_N  = [rotor_axial_N,   total_axial_N];
-final_Mx_Nm = [rotor_moment_Nm, total_moment_Nm];
-final_My_Nm = [rotor_moment_Nm, total_moment_Nm];
-final_Mz_Nm = [rotor_twist_Nm,  net_twist_Nm];         % total Mz = net (wheels cancel the arm)
+row_labels = {'Fx  [N]   sideways', 'Fy  [N]   sideways', 'Fz  [N]   along shaft', ...
+              'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist (ramps)'};
+part_line  = repmat('=', 1, 90);
 
-answer_rows   = {final_Fx_N, final_Fy_N, final_Fz_N, final_Mx_Nm, final_My_Nm, final_Mz_Nm};
-answer_labels = {'Fx  [N]   (sideways)', 'Fy  [N]   (sideways)', 'Fz  [N]   (along shaft)', ...
-                 'Mx  [N*m] (tipping)',  'My  [N*m] (tipping)',  'Mz  [N*m] (twist, ramps)'};
+part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
+                sprintf('PART 2: MOMENTUM WHEELS  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
+                'PART 3: BEARINGS  -  harmonics of each rotor''s RPM', ...
+                'PART 4: ALL TOGETHER  -  FINAL ANSWER  (arm + wheels + bearings)'};
+part_columns = {{'Arm'}, ...
+                {rotor_names{1}, rotor_names{3}, 'Wheels total'}, ...
+                {[rotor_names{1}, ' brg'], [rotor_names{2}, ' brg'], [rotor_names{3}, ' brg'], 'Bearings total'}, ...
+                {'Arm', 'Wheels', 'Bearings', 'TOTAL'}};
+part_values  = {arm_loads, ...
+                [wheel_loads, wheels_total], ...
+                [bearing_loads, bearings_total], ...
+                [arm_loads, wheels_total, bearings_total, all_total]};
 
-box_line = repmat('#', 1, 86);
-fprintf('\n\n%s\n', box_line);
-fprintf('#%84s#\n', '');
-fprintf('#%-84s#\n', '   YOUR ANSWER: induced forces and moments  (peak, worst case, at max speed)');
-fprintf('#%84s#\n', '');
-fprintf('%s\n', box_line);
-fprintf('   Speeds: %s %.0f RPM | %s %.0f RPM | %s %.0f RPM      z = along the shaft\n\n', ...
-    rotor_names{1}, max_speed_rpm(1), rotor_names{2}, max_speed_rpm(2), rotor_names{3}, max_speed_rpm(3));
-fprintf('   %-26s %12s %12s %12s %14s\n', '', rotor_names{1}, rotor_names{2}, rotor_names{3}, 'TOTAL');
-for k = 1:6
-    row = answer_rows{k};
-    fprintf('   %-26s %12.4g %12.4g %12.4g %14.4g\n', answer_labels{k}, row);
-end
-fprintf('\n   Fx = Fy and Mx = My because the loads rotate: same peak, a quarter turn apart.\n');
-fprintf('   Fz comes only from the bearings. Mz only acts during spin-up / spin-down;\n');
-fprintf('   its TOTAL is small because the wheels cancel the arm.\n');
+for part = 1:4
+    columns = part_columns{part};
+    values  = part_values{part};
+    fprintf('\n%s\n %s\n%s\n', part_line, part_titles{part}, part_line);
+    fprintf('   %-26s', '');
+    fprintf('%16s', columns{:});
+    fprintf('\n');
+    for k = 1:6
+        fprintf('   %-26s', row_labels{k});
+        fprintf('%16.4g', values(k, :));
+        fprintf('\n');
+    end
 
-fprintf('\n   WHERE IT COMES FROM (TOTAL)\n');
-fprintf('        static imbalance   -> Fx, Fy   %12.4g  N\n',   sum(static_imbalance_force_N));
-fprintf('        bearing harmonics  -> Fx, Fy   %12.4g  N\n',   sum(bearing_lateral_N));
-fprintf('        bearing harmonics  -> Fz       %12.4g  N\n',   sum(bearing_axial_N));
-fprintf('        dynamic imbalance  -> Mx, My   %12.4g  N*m\n', sum(dynamic_imbalance_moment_Nm));
-fprintf('        force x distance   -> Mx, My   %12.4g  N*m\n', sum(lever_arm_m .* rotor_lateral_N));
-
-if ~isempty(report_arm_rpm)
-    fprintf('\n   AT OTHER SPEEDS  (TOTAL, wheels follow the arm; every value grows with speed squared)\n');
-    fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
-    for i = 1:numel(report_arm_rpm)
-        speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
-        fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
-            total_lateral_N * speed_ratio ^ 2, total_axial_N * speed_ratio ^ 2, total_moment_Nm * speed_ratio ^ 2);
+    % Extra information for each part
+    if part == 1
+        fprintf('\n   Fx = Fy: static imbalance %.4g N\n', static_imbalance_force_N(arm_index));
+        fprintf('   Mx = My: dynamic imbalance %.4g N*m + force x distance %.4g N*m\n', ...
+            dynamic_imbalance_moment_Nm(arm_index), lever_arm_m(arm_index) * static_imbalance_force_N(arm_index));
+        fprintf('   Frequency: 1x RPM = %.2f Hz\n', speed_hz(arm_index));
+    elseif part == 2
+        for r = wheel_columns
+            fprintf('\n   %s:  Fx = Fy static imbalance %.4g N  |  Mx = My: dynamic imbalance %.4g + force x distance %.4g N*m  |  1x = %.2f Hz', ...
+                rotor_names{r}, static_imbalance_force_N(r), dynamic_imbalance_moment_Nm(r), ...
+                lever_arm_m(r) * static_imbalance_force_N(r), speed_hz(r));
+        end
+        fprintf('\n');
+    elseif part == 3
+        fprintf('\n   Each harmonic (frequency = harmonic x RPM / 60):\n');
+        fprintf('   %-10s %-13s %10s %12s %14s %14s\n', 'Rotor', 'Harmonic', 'x RPM', 'Freq [Hz]', 'Fx = Fy [N]', 'Fz [N]');
+        for r = 1:number_of_rotors
+            for k = 1:number_of_harmonics
+                fprintf('   %-10s %-13s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, harmonic_names{k}, ...
+                    bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
+            end
+        end
+    elseif part == 4
+        fprintf('\n   Mz TOTAL is the NET twist: the wheels twist opposite to the arm, so they cancel.\n');
+        fprintf('   Each motor mount still feels its own twist (see PART 1 and PART 2).\n');
+        if ~isempty(report_arm_rpm)
+            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; every value grows with speed squared)\n');
+            fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
+            for i = 1:numel(report_arm_rpm)
+                speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
+                fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
+                    all_total(1) * speed_ratio ^ 2, all_total(3) * speed_ratio ^ 2, all_total(4) * speed_ratio ^ 2);
+            end
+        end
     end
 end
-fprintf('\n%s\n', box_line);
+fprintf('%s\n', part_line);
