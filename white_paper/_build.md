@@ -54,11 +54,11 @@ $$G = e\,\Omega \quad [\mathrm{mm/s}]$$
 
 Precision spindles and gyroscopes are commonly balanced to G 1 or better, while general industrial machinery is often balanced to G 6.3. Because the grade ties the offset to the speed, faster rotors must be balanced more tightly to achieve the same grade.
 
-### 2.3 Dynamic imbalance
+### 2.3 Couple (dynamic) imbalance
 
 A rotor can have its center of mass exactly on the shaft and still shake. If its principal axis of inertia is tilted slightly from the spin axis, the rotor's angular momentum no longer lines up with the shaft. As the rotor turns, the angular momentum sweeps around a narrow cone, and by Equation (2) changing its direction in this way requires a moment. The shaft supplies it, and the rotor pushes back with a rocking moment that rotates with it, once per revolution.
 
-This is dynamic imbalance, sometimes called couple imbalance. For a small tilt θ, it depends on the difference between the inertia about the spin axis, I~zz~, and the inertia about the sideways axis the rotor is tilted toward, I~⊥~:
+This is couple imbalance. In wheel and vibration work it is often called dynamic imbalance; strictly, ISO 21940 uses "dynamic unbalance" for the general case of static and couple imbalance together, so "couple" is used here for the tilt part alone. For a small tilt θ, it depends on the difference between the inertia about the spin axis, I~zz~, and the inertia about the sideways axis the rotor is tilted toward, I~⊥~:
 
 $$U_d = \left|I_{zz} - I_{\perp}\right|\,\theta$$
 
@@ -68,9 +68,9 @@ The inertia difference governs how strongly a rotor responds to a tilt. A flat d
 
 $$U_{d,\mathrm{max}} = \max\left(\left|I_{zz}-I_{xx}\right|,\ \left|I_{zz}-I_{yy}\right|\right)\theta$$
 
-Dynamic imbalance only shows itself when the rotor spins, which is where the name comes from. Correcting it requires balancing in two planes along the rotor.
+Couple imbalance only shows itself when the rotor spins. Correcting it requires balancing in two planes along the rotor.
 
-| | Static imbalance | Dynamic imbalance |
+| | Static imbalance | Couple (dynamic) imbalance |
 |---|---|---|
 | Physical cause | Center of mass off the spin axis | Principal axis tilted from the spin axis |
 | Measure | U~s~ = m e | U~d~ = \|I~zz~ − I~⊥~\| θ |
@@ -81,6 +81,16 @@ Dynamic imbalance only shows itself when the rotor spins, which is where the nam
 | Corrected by | Single-plane balancing | Two-plane balancing |
 
 Real rotors almost always carry both kinds at once. They come from different manufacturing errors, so the angle between the heavy spot and the direction of tilt is effectively random and is rarely known before the rotor is balanced.
+
+**Imbalance as a specified limit.** Before hardware exists, the actual imbalance of a part cannot be known: CAD and drawings describe the ideal part, and manufacturing errors are only revealed by measurement. Rotors of this kind are balanced after assembly, so what matters at the design stage is the imbalance the part is allowed to have once balanced. That limit is set by a balance specification, given directly as U~s~ and U~d~, as an eccentricity, or as an ISO 21940 balance grade G. With a grade, the allowed static imbalance follows from Equation (7):
+
+$$U_s = m\,e = \frac{m\,G}{\Omega}$$
+
+When only a static limit is specified, the couple limit is commonly taken by applying the same tolerance in each of the two balancing planes, a distance b apart. The worst case is the two residuals pointing in opposite directions, which gives:
+
+$$U_d = \frac{U_s}{2}\,b$$
+
+Loads calculated from these limits are the largest the balanced part can produce, and balancing to the same limits is verified on the hardware.
 
 ### 2.4 Bearing-induced vibration
 
@@ -96,7 +106,7 @@ $$f_{i} = \frac{Z f_r}{2}\left(1 + \frac{D}{d_p}\cos\alpha\right)$$
 
 $$f_b = \frac{d_p}{2D}\,f_r\left[1 - \left(\frac{D}{d_p}\cos\alpha\right)^2\right]$$
 
-Equation (11) is the cage frequency, the rate at which the set of rolling elements travels around the bearing. Equation (12) is the outer race pass frequency, the rate at which elements pass a given point on the outer race. Equation (13) is the inner race pass frequency, the rate at which they pass a given point on the inner race. Equation (14) is the rolling element spin frequency. A defect on a rolling element strikes both races once per spin, so it often appears at twice f~b~. When the inner race turns instead and the outer race is fixed, the sign inside the cage frequency changes, giving (f~r~/2)(1 − (D/d~p~) cos α), while the two race pass frequencies and the spin frequency are unchanged. Two identities hold in either case and make useful checks:
+Equation (13) is the cage frequency, the rate at which the set of rolling elements travels around the bearing. Equation (14) is the outer race pass frequency, the rate at which elements pass a given point on the outer race. Equation (15) is the inner race pass frequency, the rate at which they pass a given point on the inner race. Equation (16) is the rolling element spin frequency. A defect on a rolling element strikes both races once per spin, so it often appears at twice f~b~. When the inner race turns instead and the outer race is fixed, the sign inside the cage frequency changes, giving (f~r~/2)(1 − (D/d~p~) cos α), while the two race pass frequencies and the spin frequency are unchanged. Two identities hold in either case and make useful checks:
 
 $$f_o + f_i = Z f_r$$
 
@@ -196,7 +206,7 @@ Gyroscopic effects also change the dynamics of the rotor on its bearings. A spin
 
 ### 2.8 Speed scaling and combining sources
 
-Imbalance loads grow with the square of the speed. Bearing loads well below the rotor-bearing natural frequency also grow roughly with the square of speed, through Equation (26), but are recalculated at each speed rather than scaled. An imbalance load L known at one speed can be found at any other:
+Imbalance loads grow with the square of the speed. Bearing loads well below the rotor-bearing natural frequency also grow roughly with the square of speed, through Equation (28), but are recalculated at each speed rather than scaled. An imbalance load L known at one speed can be found at any other:
 
 $$L(N) = L_{\mathrm{ref}}\left(\frac{N}{N_{\mathrm{ref}}}\right)^2$$
 
@@ -209,7 +219,7 @@ $$L_{\mathrm{total}} \le \sum_i L_i$$
 | Source | Main loads | Frequency | Size predictable from design data? |
 |---|---|---|---|
 | Static imbalance | Fx, Fy | Once per revolution | Yes, from mass and eccentricity |
-| Dynamic imbalance | Mx, My | Once per revolution | Yes, from inertias and tilt |
+| Couple (dynamic) imbalance | Mx, My | Once per revolution | Yes, from the balance specification |
 | Bearings | Fx, Fy, and Fz for angular contact bearings | Fixed non-integer multiples of shaft speed | Frequencies yes; amplitudes from geometry, preload and specified imperfections |
 | Motor reaction torque | Mz | During speed changes | Yes, from spin inertia and ramp time |
 | Motor ripple and cogging | Mz | Multiples set by pole and slot counts | Frequencies yes; amplitudes from datasheet or test |
@@ -256,7 +266,7 @@ $$\mathbf{d} = \begin{bmatrix} F_x & F_y & F_z & M_x & M_y & M_z \end{bmatrix}^T
 |---|---|---|---|
 | Fx, Fy | Perpendicular to the spin axis | Lateral or radial forces | Static imbalance, bearings |
 | Fz | Along the spin axis | Axial force | Angular contact bearings, axial harmonics |
-| Mx, My | About axes perpendicular to the spin axis | Rocking moments | Dynamic imbalance, lateral forces acting at a distance |
+| Mx, My | About axes perpendicular to the spin axis | Rocking moments | Couple imbalance, lateral forces acting at a distance |
 | Mz | About the spin axis | Torque or twist | Motor reaction torque, torque ripple, cogging |
 
 ### 4.3 Reference point and load transfer
@@ -287,7 +297,7 @@ $$F_y(t) = F\sin(\Omega t + \phi)$$
 
 $$\sqrt{F_x^2 + F_y^2} = F$$
 
-For this reason, rotating loads are usually reported as peak amplitudes for each component. Fx and Fy are listed separately because a structural model needs both directions, but they should not be combined as if they happened at the same time, which would overstate the resultant by a factor of √2. The same applies to Mx and My. Where loads from several sources with unknown relative phase are combined, adding their peaks gives the upper bound of Equation (37).
+For this reason, rotating loads are usually reported as peak amplitudes for each component. Fx and Fy are listed separately because a structural model needs both directions, but they should not be combined as if they happened at the same time, which would overstate the resultant by a factor of √2. The same applies to Mx and My. Where loads from several sources with unknown relative phase are combined, adding their peaks gives the upper bound of Equation (39).
 
 ## 5. Model Inputs
 
@@ -300,13 +310,10 @@ The same set of inputs is supplied separately for each wheel and for the arm.
 | Input | Symbol | Units | Source |
 |---|---|---|---|
 | Rotating mass | m | kg | CAD mass properties |
-| Center of mass offset (eccentricity) | e | µm | Eccentricity specification |
-| Transverse moments of inertia, at the center of mass | I~xx~, I~yy~ | kg·m² | CAD mass properties |
-| Spin moment of inertia | I~zz~ | kg·m² | CAD mass properties, or from stored momentum |
+| Spin moment of inertia | I~zz~ | kg·m² | CAD mass properties |
 | Stored angular momentum (alternative to I~zz~) | H | N·m·s | Datasheet, when given |
-| Tilt of the principal axis from the shaft | θ | deg | Estimate |
-| Static imbalance (optional) | U~s~ | kg·m | Balance specification, when available |
-| Dynamic imbalance (optional) | U~d~ | kg·m² | Balance specification, when available |
+| Static imbalance, one of: U~s~ directly, eccentricity e, or balance grade G | U~s~, e, G | kg·m, µm, mm/s | Balance specification |
+| Couple imbalance, one of: U~d~ directly, or balancing plane spacing b | U~d~, b | kg·m², m | Balance specification; b from CAD |
 | Maximum (hold) speed | N | rev/min | Operating requirement |
 | Spin direction | ±1 | – | Design |
 | Position of the center of mass along the shaft | z | m | CAD |
@@ -342,9 +349,9 @@ Each rotating part has its own pair of tapered roller bearings, bearing A and be
 
 ### 5.4 Calculated, estimated and optional inputs
 
-Most inputs are taken directly from CAD, specifications or catalogs. The tilt θ has no specified tolerance, so a small value consistent with ordinary machining and assembly practice is used. The bearing imperfection amplitudes are specified values: they should be taken from the bearing precision class or the drawing tolerances, and replaced with measured values when inspection data is available. The damping ratio is an assumed typical value.
+Most inputs are taken directly from CAD, specifications or catalogs. The imbalance values are specified limits rather than predictions, for the reasons given in Section 2.3. The bearing imperfection amplitudes are specified values: they should be taken from the bearing precision class or the drawing tolerances, and replaced with measured values when inspection data is available. The damping ratio is an assumed typical value.
 
-Static and dynamic imbalance can be supplied in two ways. If they are left blank, they are calculated from the other inputs using Equations (5) and (10). If a balance specification or report gives them directly, those values are entered instead and take priority. Entering U~d~ this way removes the need for the tilt estimate. Similarly, where a datasheet gives the stored angular momentum rather than the spin inertia, I~zz~ follows from Equation (47) in Section 6.
+Each imbalance can be supplied in whichever form the specification uses, and the first one given is used. Static imbalance is taken as U~s~ directly, or from the eccentricity by Equation (5), or from a balance grade by Equation (11). Couple imbalance is taken as U~d~ directly or, if only a static limit exists, from the plane spacing by Equation (12). Only the spin inertia I~zz~ is needed; the transverse inertias and the tilt of Equation (8) are not required once the imbalance is specified this way. Where a datasheet gives the stored angular momentum rather than the spin inertia, I~zz~ follows from Equation (49) in Section 6. Any required input that is missing is reported by name and the calculation stops, so no value is silently assumed.
 
 ## 6. Model Equations
 
@@ -366,11 +373,11 @@ $$F_w = U_s\,\Omega_w^2$$
 
 $$M_w = U_d\,\Omega_w^2$$
 
-where U~s~ and U~d~ come from Equations (5) and (10) or from a balance specification. Both loads grow with the square of speed, so doubling the speed quadruples them. Seen from the stationary shaft, each appears on the two sideways axes as a pair of equal sinusoids, 90° apart, as in Equations (43) and (44).
+where U~s~ and U~d~ are the specified balance limits, entered directly or found from Equations (5), (11) and (12). Both loads grow with the square of speed, so doubling the speed quadruples them. Seen from the stationary shaft, each appears on the two sideways axes as a pair of equal sinusoids, 90° apart, as in Equations (45) and (46).
 
 ### 6.3 Moments at the reference point
 
-These loads act at the part's center of mass, which sits at position r~cm~ along the shaft. Following Equation (40), they are moved directly to the reference point in a single step:
+These loads act at the part's center of mass, which sits at position r~cm~ along the shaft. Following Equation (42), they are moved directly to the reference point in a single step:
 
 $$\mathbf{M}_{\mathrm{ref}} = \mathbf{M}_w + \left(\mathbf{r}_{\mathrm{cm}} - \mathbf{r}_{\mathrm{ref}}\right)\times\mathbf{F}_w$$
 
@@ -378,11 +385,11 @@ Because the angle between the heavy spot and the direction of tilt is unknown, t
 
 $$M_x = M_y = M_w + F_w L, \qquad L = \left|z - z_{\mathrm{ref}}\right|$$
 
-All shafts are parallel to the structure z axis, so no rotation of axes is needed and R in Equations (41) and (42) is the identity matrix.
+All shafts are parallel to the structure z axis, so no rotation of axes is needed and R in Equations (43) and (44) is the identity matrix.
 
 ### 6.4 Reaction torque
 
-The wheel and the arm also produce quasi-steady loads. Changing a part's speed takes a torque, which the motor applies to the rotor and the stator passes into the shaft. From Equations (27) and (28), spin-up and spin-down are treated separately:
+The wheel and the arm also produce quasi-steady loads. Changing a part's speed takes a torque, which the motor applies to the rotor and the stator passes into the shaft. From Equations (29) and (30), spin-up and spin-down are treated separately:
 
 $$T_{\mathrm{up}} = -\,I_{zz}\,\frac{\Omega_w}{t_{\mathrm{up}}}$$
 
@@ -390,11 +397,11 @@ $$T_{\mathrm{down}} = +\,I_{zz}\,\frac{\Omega_w}{t_{\mathrm{down}}}$$
 
 The signs show that the mount is twisted one way during spin-up and the other way during spin-down, and parts spinning in opposite directions produce opposite signs. The net twist of the assembly is the signed sum over all three parts, which the counter-rotating wheels bring close to zero.
 
-If the support structure rotated, each part would also apply a gyroscopic moment, Equation (34). Because all shafts are stationary, ω~s~ is zero and this moment does not arise. The tangential imbalance force of Equation (29) is also neglected, since it is under 1% of the main force for the ramp times used.
+If the support structure rotated, each part would also apply a gyroscopic moment, Equation (36). Because all shafts are stationary, ω~s~ is zero and this moment does not arise. The tangential imbalance force of Equation (31) is also neglected, since it is under 1% of the main force for the ramp times used.
 
 ### 6.5 Bearing loads
 
-Each bearing of each pair is modeled separately. The bearing frequencies follow from Equations (11) to (14), using the outer-race-rotating forms, with f~r~ taken as that part's own rotor frequency. The preload gives the roller load and stiffness through Equations (17) to (19), and the bearing radial and axial stiffness through Equations (20) and (21). If the supplier gives a radial stiffness, it is used instead and the roller stiffness is found from Equation (20).
+Each bearing of each pair is modeled separately. The bearing frequencies follow from Equations (13) to (16), using the outer-race-rotating forms, with f~r~ taken as that part's own rotor frequency. The preload gives the roller load and stiffness through Equations (19) to (21), and the bearing radial and axial stiffness through Equations (22) and (23). If the supplier gives a radial stiffness, it is used instead and the roller stiffness is found from Equation (22).
 
 The rotor sits on both bearings of its pair, so its natural frequencies for lateral and axial motion are:
 
@@ -413,24 +420,24 @@ For each bearing and each harmonic k = 1 to k~max~, the specified imperfections 
 | Roller waviness, q = 2k | Axial | 2k f~b~ | 2 n~b~ k~r~ A~b~ sin α |
 | Roller diameter variation | Lateral | f~c~ | k~r~ Δ cos α |
 
-Here n~b~ is Z when the waviness of all rollers is assumed in phase (worst case) or √Z when their phases are taken as random. Each blocked force is converted to the force at the shaft with Equation (26), using the lateral or axial natural frequency. Lines from bearing A and bearing B fall at the same frequencies and are added. Within each rotor, all lateral lines are added to give the bearing Fx and Fy, and all axial lines to give Fz:
+Here n~b~ is Z when the waviness of all rollers is assumed in phase (worst case) or √Z when their phases are taken as random. Each blocked force is converted to the force at the shaft with Equation (28), using the lateral or axial natural frequency. Lines from bearing A and bearing B fall at the same frequencies and are added. Within each rotor, all lateral lines are added to give the bearing Fx and Fy, and all axial lines to give Fz:
 
 $$F_{\mathrm{lat},\mathrm{brg}} = \sum_{\text{lateral lines}} F_{shaft}, \qquad F_{\mathrm{ax},\mathrm{brg}} = \sum_{\text{axial lines}} F_{shaft}$$
 
 $$M_{x,\mathrm{brg}} = M_{y,\mathrm{brg}} = F_{\mathrm{lat},\mathrm{brg}}\,L$$
 
-Below the natural frequency the bearing force reaches the shaft as the reaction to the rotor's motion, so it is taken to act at the rotor's center of mass, a distance L from the reference point. The linear model is checked by comparing the largest combined imperfection with the preload deflection δ_0 of Equation (18), and a warning is given if rollers could unload.
+Below the natural frequency the bearing force reaches the shaft as the reaction to the rotor's motion, so it is taken to act at the rotor's center of mass, a distance L from the reference point. The linear model is checked by comparing the largest combined imperfection with the preload deflection δ_0 of Equation (20), and a warning is given if rollers could unload.
 
 ### 6.6 Assembly totals
 
-The six components are summed over the arm, both wheels and all bearings, following Equation (37). Forces and rocking moments are added as peak values. The twist is added with its sign, and its magnitude is reported as the net assembly twist. Loads at any other operating point follow from Equation (36), using the arm speed, since the wheels track the arm at a fixed ratio.
+The six components are summed over the arm, both wheels and all bearings, following Equation (39). Forces and rocking moments are added as peak values. The twist is added with its sign, and its magnitude is reported as the net assembly twist. Loads at any other operating point follow from Equation (38), using the arm speed, since the wheels track the arm at a fixed ratio.
 
 | Load | Arm and each wheel | Bearings |
 |---|---|---|
-| Fx, Fy | F~w~, Equation (48) | F~lat,brg~, Equation (55) |
-| Fz | 0 | F~ax,brg~, Equation (55) |
-| Mx, My | M~w~ + F~w~ L, Equation (51) | F~lat,brg~ L, Equation (56) |
-| Mz | Larger of T~up~ and T~down~, Equations (52) and (53) | 0, since bearing drag is reacted inside the assembly by the motor |
+| Fx, Fy | F~w~, Equation (50) | F~lat,brg~, Equation (57) |
+| Fz | 0 | F~ax,brg~, Equation (57) |
+| Mx, My | M~w~ + F~w~ L, Equation (53) | F~lat,brg~ L, Equation (58) |
+| Mz | Larger of T~up~ and T~down~, Equations (54) and (55) | 0, since bearing drag is reacted inside the assembly by the motor |
 
 ## 7. Analysis Method
 
@@ -442,31 +449,31 @@ Three decisions frame everything that follows. First, the loads are hard-mounted
 
 All three parts are handled by the same equations and the same code. Nothing in the method is specific to wheels or arms, so it applies equally to any number of rotors on parallel shafts, provided the inputs for each are supplied.
 
-Of the sources described in Section 2, the method includes those that can be estimated from the design data available: static imbalance, dynamic imbalance, motor reaction torque and the bearings. The remaining sources are left out for specific reasons. Motor ripple and cogging need the motor pole and slot counts and ripple data, which were not yet available. Broadband noise has no deterministic model and can only be measured. Gyroscopic moments are zero because all three shafts are stationary, and even if the assembly were carried on a moving base, the counter-rotating wheels are sized to bring its total angular momentum close to zero, as in Equation (35). Each of these can be added later without changing the rest of the method.
+Of the sources described in Section 2, the method includes those that can be estimated from the design data available: static imbalance, dynamic imbalance, motor reaction torque and the bearings. The remaining sources are left out for specific reasons. Motor ripple and cogging need the motor pole and slot counts and ripple data, which were not yet available. Broadband noise has no deterministic model and can only be measured. Gyroscopic moments are zero because all three shafts are stationary, and even if the assembly were carried on a moving base, the counter-rotating wheels are sized to bring its total angular momentum close to zero, as in Equation (37). Each of these can be added later without changing the rest of the method.
 
 ### 7.2 Static imbalance from the eccentricity specification
 
-Because the CAD models are symmetric, the static imbalance was taken from the eccentricity specification rather than from the geometry, using Equation (5), and the lateral force at maximum speed follows from Equation (48). This force rotates with the part. It appears at the reference point as Fx and Fy, each with the same peak value, reached a quarter of a revolution apart. It produces no axial force. Once a balance specification or a balance report is available, its value of U~s~ replaces the one calculated from eccentricity, and the rest of the method is unchanged.
+Because the CAD models are symmetric, the static imbalance is taken from the balance specification rather than from the geometry: as U~s~ directly, from the eccentricity with Equation (5), or from a balance grade with Equation (11). The lateral force at maximum speed follows from Equation (50). This force rotates with the part. It appears at the reference point as Fx and Fy, each with the same peak value, reached a quarter of a revolution apart. It produces no axial force. Whichever form is used, the rest of the method is unchanged.
 
-### 7.3 Dynamic imbalance from inertia and an estimated tilt
+### 7.3 Couple imbalance from the balance specification
 
-Dynamic imbalance needs two inputs: the difference between the spin and transverse inertias, which comes from CAD, and the tilt of the principal axis relative to the shaft, which was not specified. A small tilt was therefore assumed for each part, of a size consistent with ordinary machining and assembly tolerances. This is the least certain input in the imbalance calculation and is flagged as such in the results.
+An earlier version of the method calculated couple imbalance from the transverse inertias and an assumed tilt of each part on its shaft. That approach was dropped. The tilt has no specified value, and estimating it introduced a number with no traceable source, while the transverse inertias were needed for nothing else.
 
-The direction of the tilt is also unknown. For a rotor with equal transverse inertias, such as a wheel, this does not matter. For the arm it matters a great deal, because its inertia about one transverse axis is close to its spin inertia while its inertia about the other is very small. The method therefore uses Equation (10), which takes the worst tilt direction. As with static imbalance, U~d~ can be entered directly when a balance specification provides it, and doing so removes the need for the tilt estimate altogether.
+Couple imbalance is now treated the same way as static imbalance, as a specified limit. When a couple limit is given, it is used directly. When only a static limit exists, the couple limit is taken as that static tolerance applied in each of the two balancing planes with the residuals opposed, Equation (12), which needs only the plane spacing b from CAD. This is a stated assumption, and it is reported as such in the results. The analysis can also be used the other way round: given an allowable rocking moment M at the interface, the couple limit the balancing must achieve is U~d~ = M / Ω².
 
 ### 7.4 Moments at the reference point
 
-Each part's loads are moved from its center of mass to the reference point in a single step, using Equation (50), so that no lever arm is counted twice. Moving the reference point changes the moments but not the forces, which lets the same calculation report loads at whichever interface the structures team needs.
+Each part's loads are moved from its center of mass to the reference point in a single step, using Equation (52), so that no lever arm is counted twice. Moving the reference point changes the moments but not the forces, which lets the same calculation report loads at whichever interface the structures team needs.
 
 ### 7.5 Twist during spin-up and spin-down
 
-The twist about the shaft was calculated separately for spin-up and spin-down, Equations (52) and (53), because the two ramps can have different durations. The load tables carry the larger of the two values for each part. When the twists of all three parts are added with their signs, the counter-rotating wheels largely cancel the arm, which is the purpose of the wheels. The net value is reported as the assembly's twist, but each motor mount still carries its own full torque, and those values are reported separately so that the individual mounts can be checked.
+The twist about the shaft was calculated separately for spin-up and spin-down, Equations (54) and (55), because the two ramps can have different durations. The load tables carry the larger of the two values for each part. When the twists of all three parts are added with their signs, the counter-rotating wheels largely cancel the arm, which is the purpose of the wheels. The net value is reported as the assembly's twist, but each motor mount still carries its own full torque, and those values are reported separately so that the individual mounts can be checked.
 
 ### 7.6 Bearings
 
-The bearing model has two parts with different levels of confidence. The frequencies are exact. For each part, the catalog geometry gives the cage, outer race pass, inner race pass and rolling element spin frequencies from Equations (11) to (14), and these are reported in full because they are what a structural analyst needs to check for resonance.
+The bearing model has two parts with different levels of confidence. The frequencies are exact. For each part, the catalog geometry gives the cage, outer race pass, inner race pass and rolling element spin frequencies from Equations (13) to (16), and these are reported in full because they are what a structural analyst needs to check for resonance.
 
-The amplitudes follow from physics, but they depend on the imperfections specified. An earlier version of the method estimated each bearing harmonic as a fixed fraction of the imbalance force and treated each bearing pair as a single source with four harmonics. That approach was replaced. The current model builds the bearing stiffness from the catalog geometry and the preload, uses the classical waviness selection rule of Equation (22) to find which imperfection orders produce a net force and at which frequency, and passes each blocked force through the rotor-bearing dynamics of Equation (26). Each bearing of a pair is treated separately, with its own imperfection amplitudes, and each source produces its own set of lines at its own frequencies, rather than a single lumped set of four.
+The amplitudes follow from physics, but they depend on the imperfections specified. An earlier version of the method estimated each bearing harmonic as a fixed fraction of the imbalance force and treated each bearing pair as a single source with four harmonics. That approach was replaced. The current model builds the bearing stiffness from the catalog geometry and the preload, uses the classical waviness selection rule of Equation (24) to find which imperfection orders produce a net force and at which frequency, and passes each blocked force through the rotor-bearing dynamics of Equation (28). Each bearing of a pair is treated separately, with its own imperfection amplitudes, and each source produces its own set of lines at its own frequencies, rather than a single lumped set of four.
 
 This makes the bearing loads traceable: every line can be followed back to a specific imperfection on a specific bearing, and the effect of a tighter tolerance class or a higher preload can be seen directly. Its accuracy rests on the imperfection amplitudes. Precision-class tolerances give a defensible starting value; inspection data on the actual bearings, or supplier vibration data, should replace them when available.
 
@@ -478,27 +485,27 @@ The reference material on reaction wheel disturbance modeling was then reviewed 
 
 The method was then built as a script, kept deliberately short so that every line could be followed and checked. It was compared with a separate, much larger set of time-domain models covering the same hardware. Those models used the same equations for every effect included here, and the additional terms they carry are either negligible for our ramp times, zero for stationary shafts, or dependent on test data we do not yet have.
 
-An independent review of an early version raised several points about how results could be misread. In response, the output now states that Fx and Fy are peaks reached a quarter turn apart rather than simultaneous values, labels every result as a worst-case estimate, identifies which inputs are estimates, and reports spin-up and spin-down twist separately. The built-in checks are also described as checks on the arithmetic, not on the physical inputs. Among them are the bearing identities of Equations (15) and (16), which hold for any bearing geometry, a roller-by-roller check of the bearing stiffness of Equation (20), and a numerical check of the waviness selection rule of Equation (22).
+An independent review of an early version raised several points about how results could be misread. In response, the output now states that Fx and Fy are peaks reached a quarter turn apart rather than simultaneous values, labels every result as a worst-case estimate, identifies which inputs are estimates, and reports spin-up and spin-down twist separately. The built-in checks are also described as checks on the arithmetic, not on the physical inputs. Among them are the bearing identities of Equations (17) and (18), which hold for any bearing geometry, a roller-by-roller check of the bearing stiffness of Equation (22), and a numerical check of the waviness selection rule of Equation (24).
 
 ### 7.8 Implementation
 
-The method is implemented in a single MATLAB script. The only part a user edits is the input section, where each rotating part has its own block of clearly named values. Static and dynamic imbalance may be left blank to be calculated, or entered directly from a balance specification. When the script runs, it calculates every source, sums the loads, runs a set of arithmetic checks, plots the lateral and axial force against speed, and prints the results in four parts followed by the loads at other speeds. The flow is shown in Figure 1.
+The method is implemented in a single MATLAB script. The only part a user edits is the input section, where each rotating part has its own block of clearly named values. Static and couple imbalance can each be entered in whichever form the balance specification uses, and any required value left blank is reported by name before the calculation runs. When the script runs, it calculates every source, sums the loads, runs a set of arithmetic checks, plots the lateral and axial force against speed, and prints the results in four parts followed by the loads at other speeds. The flow is shown in Figure 1.
 
 ![Figure 1. Calculation flow of the analysis method.](flow.png){width=6in}
 
 ## 8. Assumptions and Limitations
 
-The method rests on a small number of assumptions, each chosen either because it is the standard convention for source loads or because it errs toward a larger, safer answer. The parts are treated as rigid and the mount as perfectly stiff, which is the hard-mounted convention. All peaks are added as though they occur together, since the phases between sources are unknown. Fx and Fy are peak values of the same rotating force, reached a quarter turn apart, so the resultant lateral force equals Fx rather than √2 times Fx, and the same is true of Mx and My. The dynamic imbalance uses the worst tilt direction. Speed changes are taken to occur at a constant rate, and the shafts do not move in space, so there is no gyroscopic load from motion of the base.
+The method rests on a small number of assumptions, each chosen either because it is the standard convention for source loads or because it errs toward a larger, safer answer. The parts are treated as rigid and the mount as perfectly stiff, which is the hard-mounted convention. All peaks are added as though they occur together, since the phases between sources are unknown. Fx and Fy are peak values of the same rotating force, reached a quarter turn apart, so the resultant lateral force equals Fx rather than √2 times Fx, and the same is true of Mx and My. Speed changes are taken to occur at a constant rate, and the shafts do not move in space, so there is no gyroscopic load from motion of the base.
 
-The tilt of each part has no specified tolerance and was set to a small value consistent with normal machining practice; it can be removed entirely by entering U~d~ from a balance specification. The bearing loads are only as good as the specified imperfection amplitudes, which come from tolerance classes rather than measurement. The bearing model is linear about the preload and assumes every roller stays loaded. It uses Palmgren's empirical line-contact relation for stiffness, includes only the rotor's lateral and axial modes on its bearings (not its rocking mode), adds the lines of both bearings and all sources in phase, and assumes a typical damping ratio.
+The imbalance values are specified limits, not measurements. Where no couple limit is specified, it is taken as the static tolerance in two planes with the residuals opposed, which should be confirmed or replaced by a couple requirement. The bearing loads are only as good as the specified imperfection amplitudes, which come from tolerance classes rather than measurement. The bearing model is linear about the preload and assumes every roller stays loaded. It uses Palmgren's empirical line-contact relation for stiffness, includes only the rotor's lateral and axial modes on its bearings (not its rocking mode), adds the lines of both bearings and all sources in phase, and assumes a typical damping ratio.
 
 Some effects are outside the scope of the method. It does not include structural resonance, which can raise the loads well above the hard-mounted values near a natural frequency. It does not include motor torque ripple or cogging, imbalance harmonics above the running speed, or broadband noise, and it does not model localized bearing defects such as spalls, which belong to failure analysis rather than to the induced loads of a healthy bearing. It also neglects the small tangential imbalance force during speed ramps, which is under 1% of the main force for ramps of around ten seconds.
 
 ## 9. Next Steps and Conclusion
 
-The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. The tilt estimate will be replaced with U~d~ from a balance specification, and the bearing imperfection amplitudes with inspection data or supplier vibration data. Motor torque ripple can be added once the motor pole and slot counts and ripple data are known. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
+The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. A couple imbalance requirement will be defined or confirmed with the rotor designers, and the bearing imperfection amplitudes with inspection data or supplier vibration data. Motor torque ripple can be added once the motor pole and slot counts and ripple data are known. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
 
-Induced vibration from rotating machinery comes down to a short list of physical effects. A rotor whose center of mass is off its axis pushes sideways. A rotor that sits tilted rocks its shaft. A rotor that changes speed twists its mount. The bearings add small disturbances at frequencies set by their geometry, with sizes set by their stiffness, preload and imperfections. For our assembly, each of these was estimated from design data alone, in a form that is conservative, can be checked by hand, and can be refined one input at a time as better data becomes available.
+Induced vibration from rotating machinery comes down to a short list of physical effects. A rotor whose center of mass is off its axis pushes sideways. A rotor whose principal axis is tilted rocks its shaft. A rotor that changes speed twists its mount. The bearings add small disturbances at frequencies set by their geometry, with sizes set by their stiffness, preload and imperfections. For our assembly, each of these was estimated from design data alone, in a form that is conservative, can be checked by hand, and can be refined one input at a time as better data becomes available.
 
 ## References
 

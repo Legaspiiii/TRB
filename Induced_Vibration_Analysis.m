@@ -8,11 +8,16 @@
 %       if a datasheet gives the stored momentum H instead (optional input).
 %
 %    1. IMBALANCE (each rotor), once per revolution (1x RPM)
-%       - Static imbalance  : center of mass is off the spin axis -> lateral force
-%                             F = Us x speed^2,   Us = mass x eccentricity
-%       - Dynamic imbalance : rotor sits slightly tilted          -> moment
-%                             M = Ud x speed^2,   Ud = (Izz - I_perpendicular) x tilt
-%                             (Us and Ud can also be typed in directly)
+%       - Static imbalance Us  : center of mass off the spin axis -> lateral force
+%                                F = Us x speed^2
+%         Us from (first one filled in): Us directly, mass x eccentricity,
+%         or ISO 21940 balance grade G (Us = mass x G / speed)
+%       - Couple imbalance Ud  : principal axis tilted (often called dynamic
+%                                imbalance)                       -> rocking moment
+%                                M = Ud x speed^2
+%         Ud from (first one filled in): Ud directly, or the static tolerance
+%         applied in each of two balancing planes b apart, worst case opposed:
+%         Ud = (Us / 2) x b
 %
 %    2. BEARINGS (each rotor's back-to-back tapered roller bearing pair,
 %       bearing A and bearing B modelled separately)
@@ -44,12 +49,13 @@
 %      moment (phases are unknown). Real loads are equal or lower.
 %    - Fx and Fy (and Mx and My) are peak values reached a quarter turn
 %      apart, NOT at the same time: the sideways resultant = Fx, not 1.41 x Fx.
-%    - Ud uses the larger of |Izz-Ixx| and |Izz-Iyy| (worst tilt direction).
+%    - If Ud is not entered, it is the static tolerance in two planes, opposed
+%      (worst case): Ud = (Us / 2) x plane spacing.
 %    - Bearing loads come from the SPECIFIED imperfection amplitudes; they are
 %      only as good as those numbers (use drawing / bearing class tolerances).
 %    - Bearing model is linear about the preload (rollers stay loaded) and uses
 %      the rotor's lateral and axial modes only (no rocking mode).
-%    - Tilt is an estimate (no test data).
+%    - Imbalance values are the SPECIFIED limits (balance spec), not measurements.
 %    - Not included: structural resonance, motor torque ripple, broadband noise.
 %
 %  Directions:
@@ -91,15 +97,22 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
                                   %       ratio as the max speeds). Use [] for none.
 
 % ------------------------------------------------------------------------
-% STATIC (Us) AND DYNAMIC (Ud) IMBALANCE -- TWO WAYS TO ENTER THEM
-%   a) Leave Us and Ud as []  -> the script calculates them:
-%        Us = mass x eccentricity              [kg*m]
-%        Ud = (Izz - I_perpendicular) x tilt   [kg*m^2]
-%   b) Type a number          -> the script uses your number instead
-%      (e.g. from a balance report or spec). Convert units first:
-%        Us: 1 g*mm = 1e-6 kg*m      1 g*cm = 1e-5 kg*m
-%        Ud: 1 g*mm^2 = 1e-9 kg*m^2  1 g*cm^2 = 1e-7 kg*m^2
-%   Each one is independent: you can enter Us and let Ud be calculated.
+% IMBALANCE INPUTS -- fill in ONE way for each (the first one filled in is used)
+%   STATIC imbalance Us (lateral force):
+%     way 1  *_static_imbalance_kgm   Us directly, from a balance spec/report
+%     way 2  *_eccentricity_um        center of mass offset   -> Us = mass x e
+%     way 3  *_balance_grade_mm_s     ISO 21940 grade G        -> Us = mass x G / speed
+%   COUPLE imbalance Ud (rocking moment, often called dynamic imbalance):
+%     way 1  *_couple_imbalance_kgm2  Ud directly, from a balance spec/report
+%     way 2  *_plane_spacing_m        distance b between the 2 balancing planes
+%                                     -> Ud = (Us / 2) x b  (static tolerance in each
+%                                        plane, opposed = worst case)
+%   Unit help:  1 g*mm = 1e-6 kg*m      1 g*mm^2 = 1e-9 kg*m^2
+%   Leave the ways you don't use as [].
+%
+% SPIN INERTIA: enter Izz (from CAD), OR the stored momentum H (Izz = H / speed).
+%
+% Anything required that is left [] stops the script with a list of what to fill in.
 % ------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------
@@ -118,19 +131,18 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
 % ------------------------------------------------------------------------
 % 1B. WHEEL 1
 % ------------------------------------------------------------------------
-wheel1_name               = 'Wheel 1';
-wheel1_mass_kg            = 3.0;      % [kg]     rotating mass only
-wheel1_eccentricity_um    = 15;       % [um]     center of mass offset from the spin axis
-wheel1_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
-wheel1_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
-wheel1_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
-wheel1_momentum_Nms           = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
-wheel1_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
-wheel1_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
-wheel1_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
-wheel1_max_speed_rpm      = 515;      % [RPM]
-wheel1_spin_direction     = -1;       % +1 or -1
-wheel1_position_m         = -0.200;   % [m]      center of mass position along the shaft
+wheel1_name                   = 'Wheel 1';
+wheel1_mass_kg                = 3.0;      % [kg]     rotating mass only
+wheel1_Izz_kgm2               = 0.034;    % [kg*m^2] spin-axis inertia, from CAD (or use momentum below)
+wheel1_momentum_Nms           = [];       % [N*m*s]  OPTIONAL instead of Izz: stored momentum at max speed (Izz = H / speed)
+wheel1_static_imbalance_kgm   = [];       % [kg*m]   STATIC way 1: Us directly (balance spec / report)
+wheel1_eccentricity_um        = [];       % [um]     STATIC way 2: center of mass offset (Us = mass x e)
+wheel1_balance_grade_mm_s     = 2.5;      % [mm/s]   STATIC way 3: ISO 21940 balance grade G (Us = mass x G / speed)
+wheel1_couple_imbalance_kgm2  = [];       % [kg*m^2] COUPLE way 1: Ud directly (balance spec / report)
+wheel1_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance between the 2 balancing planes (Ud = Us/2 x b)
+wheel1_max_speed_rpm          = 515;      % [RPM]
+wheel1_spin_direction         = -1;       % +1 or -1
+wheel1_position_m             = -0.200;   % [m]      center of mass position along the shaft
 
 wheel1_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel1_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -147,19 +159,18 @@ wheel1_bearing_roller_size_var_um = [0.25 0.25];  % [um] roller diameter variati
 % ------------------------------------------------------------------------
 % 1C. ARM
 % ------------------------------------------------------------------------
-arm_name                  = 'Arm';
-arm_mass_kg               = 4.0;      % [kg]     rotating mass only
-arm_eccentricity_um       = 20;       % [um]     center of mass offset from the spin axis
-arm_Ixx_kgm2              = 0.340;    % [kg*m^2] from CAD, at the center of mass
-arm_Iyy_kgm2              = 0.004;    % [kg*m^2] from CAD (about the arm's own length)
-arm_Izz_kgm2              = 0.350;    % [kg*m^2] from CAD, about the shaft
-arm_momentum_Nms              = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
-arm_tilt_deg              = 0.03;     % [deg]    how crooked it sits on the shaft
-arm_static_imbalance_kgm      = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
-arm_dynamic_imbalance_kgm2    = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
-arm_max_speed_rpm         = 100;      % [RPM]
-arm_spin_direction        = +1;       % +1 or -1
-arm_position_m            = 0.000;    % [m]      center of mass position along the shaft
+arm_name                      = 'Arm';
+arm_mass_kg                   = 4.0;      % [kg]     rotating mass only
+arm_Izz_kgm2                  = 0.350;    % [kg*m^2] spin-axis inertia, from CAD (or use momentum below)
+arm_momentum_Nms              = [];       % [N*m*s]  OPTIONAL instead of Izz: stored momentum at max speed (Izz = H / speed)
+arm_static_imbalance_kgm      = [];       % [kg*m]   STATIC way 1: Us directly (balance spec / report)
+arm_eccentricity_um           = 20;       % [um]     STATIC way 2: center of mass offset (Us = mass x e)
+arm_balance_grade_mm_s        = [];       % [mm/s]   STATIC way 3: ISO 21940 balance grade G (Us = mass x G / speed)
+arm_couple_imbalance_kgm2     = [];       % [kg*m^2] COUPLE way 1: Ud directly (balance spec / report)
+arm_plane_spacing_m           = 0.040;    % [m]      COUPLE way 2: distance between the 2 balancing planes (Ud = Us/2 x b)
+arm_max_speed_rpm             = 100;      % [RPM]
+arm_spin_direction            = +1;       % +1 or -1
+arm_position_m                = 0.000;    % [m]      center of mass position along the shaft
 
 arm_bearing_rollers           = 20;   % [-]   number of rollers      (bearing catalog)
 arm_bearing_roller_dia_mm     = 8;    % [mm]  mean roller diameter   (bearing catalog)
@@ -176,19 +187,18 @@ arm_bearing_roller_size_var_um = [0.25 0.25];  % [um] roller diameter variation 
 % ------------------------------------------------------------------------
 % 1D. WHEEL 2
 % ------------------------------------------------------------------------
-wheel2_name               = 'Wheel 2';
-wheel2_mass_kg            = 3.0;      % [kg]     rotating mass only
-wheel2_eccentricity_um    = 15;       % [um]     center of mass offset from the spin axis
-wheel2_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
-wheel2_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
-wheel2_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
-wheel2_momentum_Nms           = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
-wheel2_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
-wheel2_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
-wheel2_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
-wheel2_max_speed_rpm      = 515;      % [RPM]
-wheel2_spin_direction     = -1;       % +1 or -1
-wheel2_position_m         = 0.200;    % [m]      center of mass position along the shaft
+wheel2_name                   = 'Wheel 2';
+wheel2_mass_kg                = 3.0;      % [kg]     rotating mass only
+wheel2_Izz_kgm2               = 0.034;    % [kg*m^2] spin-axis inertia, from CAD (or use momentum below)
+wheel2_momentum_Nms           = [];       % [N*m*s]  OPTIONAL instead of Izz: stored momentum at max speed (Izz = H / speed)
+wheel2_static_imbalance_kgm   = [];       % [kg*m]   STATIC way 1: Us directly (balance spec / report)
+wheel2_eccentricity_um        = [];       % [um]     STATIC way 2: center of mass offset (Us = mass x e)
+wheel2_balance_grade_mm_s     = 2.5;      % [mm/s]   STATIC way 3: ISO 21940 balance grade G (Us = mass x G / speed)
+wheel2_couple_imbalance_kgm2  = [];       % [kg*m^2] COUPLE way 1: Ud directly (balance spec / report)
+wheel2_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance between the 2 balancing planes (Ud = Us/2 x b)
+wheel2_max_speed_rpm          = 515;      % [RPM]
+wheel2_spin_direction         = -1;       % +1 or -1
+wheel2_position_m             = 0.200;    % [m]      center of mass position along the shaft
 
 wheel2_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel2_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -211,30 +221,69 @@ plot_folder = 'Induced_Vibration_Plots';
 
 
 %% ========================================================================
+%  SECTION 1F: INPUT CHECK  (stops with a list if anything required is missing)
+%  ========================================================================
+
+rotor_prefixes = {'wheel1', 'arm', 'wheel2'};
+required_each  = {'mass_kg', 'max_speed_rpm', 'spin_direction', 'position_m', ...
+                  'bearing_rollers', 'bearing_roller_dia_mm', 'bearing_pitch_dia_mm', 'bearing_cup_angle_deg', ...
+                  'bearing_roller_length_mm', 'bearing_preload_N', 'bearing_outer_waviness_um', ...
+                  'bearing_inner_waviness_um', 'bearing_roller_waviness_um', 'bearing_roller_size_var_um'};
+required_general = {'spin_up_time_s', 'spin_down_time_s', 'reference_position_m', ...
+                    'bearing_harmonic_count', 'bearing_damping_ratio'};
+missing_inputs = {};
+for i = 1:numel(required_general)
+    if isempty(eval(required_general{i}))
+        missing_inputs{end+1} = required_general{i};
+    end
+end
+for p = 1:numel(rotor_prefixes)
+    pre = rotor_prefixes{p};
+    for i = 1:numel(required_each)
+        if isempty(eval([pre, '_', required_each{i}]))
+            missing_inputs{end+1} = [pre, '_', required_each{i}];
+        end
+    end
+    if isempty(eval([pre, '_Izz_kgm2'])) && isempty(eval([pre, '_momentum_Nms']))
+        missing_inputs{end+1} = [pre, '_Izz_kgm2  (or ', pre, '_momentum_Nms)'];
+    end
+    if isempty(eval([pre, '_static_imbalance_kgm'])) && isempty(eval([pre, '_eccentricity_um'])) ...
+            && isempty(eval([pre, '_balance_grade_mm_s']))
+        missing_inputs{end+1} = [pre, ' static imbalance: fill ONE of _static_imbalance_kgm, _eccentricity_um, _balance_grade_mm_s'];
+    end
+    if isempty(eval([pre, '_couple_imbalance_kgm2'])) && isempty(eval([pre, '_plane_spacing_m']))
+        missing_inputs{end+1} = [pre, ' couple imbalance: fill ONE of _couple_imbalance_kgm2, _plane_spacing_m'];
+    end
+end
+if ~isempty(missing_inputs)
+    fprintf('\n*** MISSING INPUTS - fill these in SECTION 1, then run again ***\n');
+    fprintf('   %s\n', missing_inputs{:});
+    error('Missing inputs (listed above).');
+end
+
+
+%% ========================================================================
 %  SECTION 2: PUT THE THREE ROTORS SIDE BY SIDE
 %  Every quantity is a row of 3 numbers: [Wheel 1, Arm, Wheel 2]
 %  ========================================================================
 
 rotor_names     = {wheel1_name, arm_name, wheel2_name};
 number_of_rotors = 3;
-arm_index       = 2;
+arm_index                     = 2;
 
 mass_kg          = [wheel1_mass_kg,         arm_mass_kg,         wheel2_mass_kg];
-eccentricity_um  = [wheel1_eccentricity_um, arm_eccentricity_um, wheel2_eccentricity_um];
-Ixx_kgm2         = [wheel1_Ixx_kgm2,        arm_Ixx_kgm2,        wheel2_Ixx_kgm2];
-Iyy_kgm2         = [wheel1_Iyy_kgm2,        arm_Iyy_kgm2,        wheel2_Iyy_kgm2];
-Izz_kgm2         = [wheel1_Izz_kgm2,        arm_Izz_kgm2,        wheel2_Izz_kgm2];
-tilt_deg         = [wheel1_tilt_deg,        arm_tilt_deg,        wheel2_tilt_deg];
 max_speed_rpm    = [wheel1_max_speed_rpm,   arm_max_speed_rpm,   wheel2_max_speed_rpm];
 spin_direction   = [wheel1_spin_direction,  arm_spin_direction,  wheel2_spin_direction];
 position_m       = [wheel1_position_m,      arm_position_m,      wheel2_position_m];
 
-% Entered stored momentum H (cells, because [] means "use Izz from CAD")
-momentum_entered = {wheel1_momentum_Nms, arm_momentum_Nms, wheel2_momentum_Nms};
-
-% Entered Us / Ud (cells, because [] means "calculate it")
+% Inputs that can be filled in more than one way are kept as cells ([] = not given)
+Izz_entered               = {wheel1_Izz_kgm2,               arm_Izz_kgm2,               wheel2_Izz_kgm2};
+momentum_entered          = {wheel1_momentum_Nms,           arm_momentum_Nms,           wheel2_momentum_Nms};
 static_imbalance_entered  = {wheel1_static_imbalance_kgm,   arm_static_imbalance_kgm,   wheel2_static_imbalance_kgm};
-dynamic_imbalance_entered = {wheel1_dynamic_imbalance_kgm2, arm_dynamic_imbalance_kgm2, wheel2_dynamic_imbalance_kgm2};
+eccentricity_entered      = {wheel1_eccentricity_um,        arm_eccentricity_um,        wheel2_eccentricity_um};
+balance_grade_entered     = {wheel1_balance_grade_mm_s,     arm_balance_grade_mm_s,     wheel2_balance_grade_mm_s};
+couple_imbalance_entered  = {wheel1_couple_imbalance_kgm2,  arm_couple_imbalance_kgm2,  wheel2_couple_imbalance_kgm2};
+plane_spacing_entered     = {wheel1_plane_spacing_m,        arm_plane_spacing_m,        wheel2_plane_spacing_m};
 
 bearing_rollers       = [wheel1_bearing_rollers,       arm_bearing_rollers,       wheel2_bearing_rollers];
 bearing_roller_dia_mm = [wheel1_bearing_roller_dia_mm, arm_bearing_roller_dia_mm, wheel2_bearing_roller_dia_mm];
@@ -257,15 +306,17 @@ roller_size_var_m = 1e-6 * [wheel1_bearing_roller_size_var_um; arm_bearing_rolle
 
 speed_rad_s      = max_speed_rpm * 2 * pi / 60;     % [rad/s]
 speed_hz         = max_speed_rpm / 60;              % [Hz]  revolutions per second (1x RPM)
-eccentricity_m   = eccentricity_um * 1e-6;          % [m]
-tilt_rad         = tilt_deg * pi / 180;             % [rad]
 lever_arm_m      = abs(position_m - reference_position_m);   % [m] distance to the reference point
 ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
 
-% If a datasheet gives stored momentum H instead of Izz:  Izz = H / speed
-inertia_source = {'CAD', 'CAD', 'CAD'};
+% Spin inertia: Izz from CAD, or from stored momentum H:  Izz = H / speed
+Izz_kgm2       = zeros(1, number_of_rotors);
+inertia_source = cell(1, number_of_rotors);
 for r = 1:number_of_rotors
-    if ~isempty(momentum_entered{r})
+    if ~isempty(Izz_entered{r})
+        Izz_kgm2(r) = Izz_entered{r};
+        inertia_source{r} = 'CAD';
+    else
         Izz_kgm2(r) = momentum_entered{r} / speed_rad_s(r);
         inertia_source{r} = 'from H';
     end
@@ -281,29 +332,35 @@ twist_spin_down_Nm =  spin_direction .* Izz_kgm2 .* speed_rad_s / max(spin_down_
 %  SECTION 4: STATIC AND DYNAMIC IMBALANCE  (1x RPM)
 %  ========================================================================
 
-% Step 1: calculated values (used unless you typed your own Us / Ud)
-%   Ud uses the LARGER inertia difference: the worst tilt direction (conservative).
-static_imbalance_kgm   = mass_kg .* eccentricity_m;                                              % Us [kg*m]
-dynamic_imbalance_kgm2 = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad;   % Ud [kg*m^2]
-static_source  = {'calculated', 'calculated', 'calculated'};
-dynamic_source = {'calculated', 'calculated', 'calculated'};
-
-% Step 2: replace with your own number wherever you entered one
+% Static imbalance Us and couple imbalance Ud: the first way filled in is used
+static_imbalance_kgm   = zeros(1, number_of_rotors);
+dynamic_imbalance_kgm2 = zeros(1, number_of_rotors);     % couple imbalance Ud
+static_source  = cell(1, number_of_rotors);
+dynamic_source = cell(1, number_of_rotors);
 for r = 1:number_of_rotors
     if ~isempty(static_imbalance_entered{r})
         static_imbalance_kgm(r) = static_imbalance_entered{r};
         static_source{r} = 'entered';
+    elseif ~isempty(eccentricity_entered{r})
+        static_imbalance_kgm(r) = mass_kg(r) * eccentricity_entered{r} * 1e-6;                  % Us = m e
+        static_source{r} = sprintf('e = %g um', eccentricity_entered{r});
+    else
+        static_imbalance_kgm(r) = mass_kg(r) * balance_grade_entered{r} * 1e-3 / speed_rad_s(r);  % Us = m G / speed
+        static_source{r} = sprintf('grade G%g', balance_grade_entered{r});
     end
-    if ~isempty(dynamic_imbalance_entered{r})
-        dynamic_imbalance_kgm2(r) = dynamic_imbalance_entered{r};
+    if ~isempty(couple_imbalance_entered{r})
+        dynamic_imbalance_kgm2(r) = couple_imbalance_entered{r};
         dynamic_source{r} = 'entered';
+    else
+        dynamic_imbalance_kgm2(r) = static_imbalance_kgm(r) / 2 * plane_spacing_entered{r};      % Ud = (Us/2) b
+        dynamic_source{r} = sprintf('b = %g m', plane_spacing_entered{r});
     end
 end
 
 % Static imbalance: center of mass off the spin axis -> lateral force   F = Us x speed^2
 static_imbalance_force_N = static_imbalance_kgm .* speed_rad_s .^ 2;
 
-% Dynamic imbalance: rotor tilted on the spin axis -> moment            M = Ud x speed^2
+% Couple imbalance: rotor tilted on the spin axis -> rocking moment     M = Ud x speed^2
 dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* speed_rad_s .^ 2;
 
 
@@ -478,7 +535,7 @@ end
 
 % ---- Group the columns ----
 wheel_columns = [1 3];
-arm_loads     = imbalance_loads(:, arm_index);
+arm_loads                     = imbalance_loads(:, arm_index);
 wheel_loads   = imbalance_loads(:, wheel_columns);
 wheels_total  = sum(wheel_loads, 2);                   % Mz adds with sign (both wheels spin the same way)
 bearings_total = sum(bearing_loads, 2);
@@ -506,7 +563,7 @@ final_Mz_Nm = all_total(6);
 %% ========================================================================
 %  SECTION 6B: ARITHMETIC CHECKS  (the script checks its own math every run)
 %  NOTE: these prove the code calculates its equations correctly. They do
-%  NOT prove the inputs or estimates (tilt, imperfection amplitudes) are right.
+%  NOT prove the inputs (balance limits, imperfection amplitudes) are right.
 %  ------------------------------------------------------------------------
 %  Each check redoes a result a DIFFERENT way (by hand formula or a known
 %  identity) and compares it with what the script calculated above.
@@ -527,22 +584,36 @@ hand_value = static_imbalance_kgm .* (2 * pi * speed_hz) .^ 2;
 check_names{end+1}  = '2. Static imbalance force   F = Us x speed^2';
 check_passed(end+1) = max(abs(hand_value - static_imbalance_force_N)) <= check_tol * max(abs(hand_value));
 
-% 3. Calculated Us = mass x eccentricity (only rotors where Us was not entered)
-use_calc = strcmp(static_source, 'calculated');
-hand_value = mass_kg .* eccentricity_um / 1e6;
-check_names{end+1}  = '3. Calculated Us = mass x eccentricity';
-check_passed(end+1) = all(abs(hand_value(use_calc) - static_imbalance_kgm(use_calc)) <= check_tol * max([abs(hand_value), eps]));
+% 3. Us recomputed from whichever way it was given
+hand_value = zeros(1, number_of_rotors);
+for r = 1:number_of_rotors
+    if ~isempty(static_imbalance_entered{r})
+        hand_value(r) = static_imbalance_entered{r};
+    elseif ~isempty(eccentricity_entered{r})
+        hand_value(r) = mass_kg(r) * eccentricity_entered{r} / 1e6;
+    else
+        hand_value(r) = mass_kg(r) * (balance_grade_entered{r} / 1000) / (2 * pi * max_speed_rpm(r) / 60);
+    end
+end
+check_names{end+1}  = '3. Us = entered, or mass x e, or mass x G / speed';
+check_passed(end+1) = max(abs(hand_value - static_imbalance_kgm)) <= check_tol * max([abs(hand_value), eps]);
 
 % 4. Dynamic moment by hand:  M = Ud x (2*pi*f)^2
 hand_value = dynamic_imbalance_kgm2 .* (2 * pi * speed_hz) .^ 2;
-check_names{end+1}  = '4. Dynamic imbalance moment M = Ud x speed^2';
+check_names{end+1}  = '4. Couple imbalance moment M = Ud x speed^2';
 check_passed(end+1) = max(abs(hand_value - dynamic_imbalance_moment_Nm)) <= check_tol * max([abs(hand_value), eps]);
 
-% 5. Calculated Ud = (Izz - I_perp) x tilt (only rotors where Ud was not entered)
-use_calc = strcmp(dynamic_source, 'calculated');
-hand_value = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_deg * pi / 180;
-check_names{end+1}  = '5. Calculated Ud = (Izz - I_perp) x tilt';
-check_passed(end+1) = all(abs(hand_value(use_calc) - dynamic_imbalance_kgm2(use_calc)) <= check_tol * max([abs(hand_value), eps]));
+% 5. Ud recomputed: entered, or the static tolerance in two planes b apart, opposed
+hand_value = zeros(1, number_of_rotors);
+for r = 1:number_of_rotors
+    if ~isempty(couple_imbalance_entered{r})
+        hand_value(r) = couple_imbalance_entered{r};
+    else
+        hand_value(r) = 0.5 * static_imbalance_kgm(r) * plane_spacing_entered{r};
+    end
+end
+check_names{end+1}  = '5. Ud = entered, or (Us / 2) x plane spacing';
+check_passed(end+1) = max(abs(hand_value - dynamic_imbalance_kgm2)) <= check_tol * max([abs(hand_value), eps]);
 
 % 6. Bearing identities (exact for any bearing):
 %    cup pass + cone pass = number of rollers,  cup pass = rollers x (1 - cage)
@@ -568,7 +639,7 @@ check_passed(end+1) = max(abs(hand_value - abs(imbalance_loads(6, :)))) <= check
 
 % 9. Tipping moment = dynamic imbalance + sideways force x distance
 hand_value = dynamic_imbalance_moment_Nm + static_imbalance_force_N .* abs(position_m - reference_position_m);
-check_names{end+1}  = '9. Tipping moment = dynamic + force x distance';
+check_names{end+1}  = '9. Tipping moment = couple + force x distance';
 check_passed(end+1) = max(abs(hand_value - imbalance_loads(4, :))) <= check_tol * max([hand_value, eps]);
 
 % 10. Rotating loads: peak Fx = peak Fy and peak Mx = peak My, everywhere
@@ -720,12 +791,12 @@ end
 % ---- Where Us and Ud came from ----
 fprintf('\n   Imbalance used:\n');
 for r = 1:number_of_rotors
-    fprintf('   %-8s  Us = %-10.4g kg*m   (%s)     Ud = %-10.4g kg*m^2   (%s)     Izz = %-8.4g kg*m^2 (%s)\n', rotor_names{r}, ...
+    fprintf('   %-8s  Us = %-10.4g kg*m (%-12s)   Ud (couple) = %-10.4g kg*m^2 (%-10s)   Izz = %-8.4g kg*m^2 (%s)\n', rotor_names{r}, ...
         static_imbalance_kgm(r), static_source{r}, dynamic_imbalance_kgm2(r), dynamic_source{r}, Izz_kgm2(r), inertia_source{r});
 end
 
-part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
-                sprintf('PART 2: MOMENTUM WHEELS  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
+part_titles  = {sprintf('PART 1: ARM  -  static + couple imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
+                sprintf('PART 2: MOMENTUM WHEELS  -  static + couple imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
                 'PART 3: BEARINGS  -  geometry, stiffness, preload and specified imperfections', ...
                 'PART 4: ALL TOGETHER  -  FINAL ANSWER, WORST-CASE ESTIMATE  (arm + wheels + bearings)'};
 part_columns = {{'Arm'}, ...
@@ -753,14 +824,14 @@ for part = 1:4
     % Extra information for each part
     if part == 1
         fprintf('\n   Fx = Fy: static imbalance %.4g N\n', static_imbalance_force_N(arm_index));
-        fprintf('   Mx = My: dynamic imbalance %.4g N*m + force x distance %.4g N*m\n', ...
+        fprintf('   Mx = My: couple imbalance %.4g N*m + force x distance %.4g N*m\n', ...
             dynamic_imbalance_moment_Nm(arm_index), lever_arm_m(arm_index) * static_imbalance_force_N(arm_index));
         fprintf('   Frequency: 1x RPM = %.2f Hz\n', speed_hz(arm_index));
         fprintf('   Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m\n', ...
             twist_spin_up_Nm(arm_index), twist_spin_down_Nm(arm_index));
     elseif part == 2
         for r = wheel_columns
-            fprintf('\n   %s:  Fx = Fy static imbalance %.4g N  |  Mx = My: dynamic imbalance %.4g + force x distance %.4g N*m  |  1x = %.2f Hz', ...
+            fprintf('\n   %s:  Fx = Fy static imbalance %.4g N  |  Mx = My: couple imbalance %.4g + force x distance %.4g N*m  |  1x = %.2f Hz', ...
                 rotor_names{r}, static_imbalance_force_N(r), dynamic_imbalance_moment_Nm(r), ...
                 lever_arm_m(r) * static_imbalance_force_N(r), speed_hz(r));
             fprintf('\n   %s:  Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m', ...
@@ -811,8 +882,9 @@ for part = 1:4
         fprintf('     The sideways resultant = Fx (not 1.41 x Fx). Same for Mx and My.\n');
         fprintf('   - WORST CASE: every source and every moment part is added as if their peaks\n');
         fprintf('     line up (phases are unknown). Real loads are equal or lower.\n');
-        fprintf('   - Ud uses the worst tilt direction. Bearing loads follow from the specified imperfections.\n');
-        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt is an estimate. Bearing imperfections are as specified.\n');
+        fprintf('   - Imbalance values are the specified balance limits. If Ud was not entered it is the static\n');
+        fprintf('     tolerance in two planes, opposed (worst case). Bearing loads follow from the specified imperfections.\n');
+        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Imbalance and bearing imperfections at their specified limits.\n');
         fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, broadband noise.\n');
         if ~isempty(report_arm_rpm)
             fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; imbalance x speed^2, bearings recalculated)\n');
