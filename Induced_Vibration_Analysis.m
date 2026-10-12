@@ -4,6 +4,9 @@
 %  and their bearings
 %
 %  Sources:
+%    0. SPEED: speed [rad/s] = RPM x 2*pi / 60.  Izz from CAD, or Izz = H / speed
+%       if a datasheet gives the stored momentum H instead (optional input).
+%
 %    1. IMBALANCE (each rotor), once per revolution (1x RPM)
 %       - Static imbalance  : center of mass is off the spin axis -> lateral force
 %                             F = Us x speed^2,   Us = mass x eccentricity
@@ -95,6 +98,7 @@ wheel1_eccentricity_um    = 15;       % [um]     center of mass offset from the 
 wheel1_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel1_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel1_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
+wheel1_momentum_Nms           = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
 wheel1_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
 wheel1_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
 wheel1_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
@@ -116,6 +120,7 @@ arm_eccentricity_um       = 20;       % [um]     center of mass offset from the 
 arm_Ixx_kgm2              = 0.340;    % [kg*m^2] from CAD, at the center of mass
 arm_Iyy_kgm2              = 0.004;    % [kg*m^2] from CAD (about the arm's own length)
 arm_Izz_kgm2              = 0.350;    % [kg*m^2] from CAD, about the shaft
+arm_momentum_Nms              = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
 arm_tilt_deg              = 0.03;     % [deg]    how crooked it sits on the shaft
 arm_static_imbalance_kgm      = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
 arm_dynamic_imbalance_kgm2    = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
@@ -137,6 +142,7 @@ wheel2_eccentricity_um    = 15;       % [um]     center of mass offset from the 
 wheel2_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel2_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel2_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
+wheel2_momentum_Nms           = [];       % [N*m*s]  H OPTIONAL. Stored momentum at max speed; if given, Izz = H / speed
 wheel2_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
 wheel2_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
 wheel2_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
@@ -176,6 +182,9 @@ max_speed_rpm    = [wheel1_max_speed_rpm,   arm_max_speed_rpm,   wheel2_max_spee
 spin_direction   = [wheel1_spin_direction,  arm_spin_direction,  wheel2_spin_direction];
 position_m       = [wheel1_position_m,      arm_position_m,      wheel2_position_m];
 
+% Entered stored momentum H (cells, because [] means "use Izz from CAD")
+momentum_entered = {wheel1_momentum_Nms, arm_momentum_Nms, wheel2_momentum_Nms};
+
 % Entered Us / Ud (cells, because [] means "calculate it")
 static_imbalance_entered  = {wheel1_static_imbalance_kgm,   arm_static_imbalance_kgm,   wheel2_static_imbalance_kgm};
 dynamic_imbalance_entered = {wheel1_dynamic_imbalance_kgm2, arm_dynamic_imbalance_kgm2, wheel2_dynamic_imbalance_kgm2};
@@ -195,7 +204,16 @@ speed_hz         = max_speed_rpm / 60;              % [Hz]  revolutions per seco
 eccentricity_m   = eccentricity_um * 1e-6;          % [m]
 tilt_rad         = tilt_deg * pi / 180;             % [rad]
 lever_arm_m      = abs(position_m - reference_position_m);   % [m] distance to the reference point
-ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);   % shorter ramp = worst case (used in tables)
+ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
+
+% If a datasheet gives stored momentum H instead of Izz:  Izz = H / speed
+inertia_source = {'CAD', 'CAD', 'CAD'};
+for r = 1:number_of_rotors
+    if ~isempty(momentum_entered{r})
+        Izz_kgm2(r) = momentum_entered{r} / speed_rad_s(r);
+        inertia_source{r} = 'from H';
+    end
+end   % shorter ramp = worst case (used in tables)
 
 % Twist on the mount (reaction torque = -Izz x acceleration), spin-up and spin-down separately.
 % Sign shows direction: spin-up and spin-down twist the mount opposite ways.
@@ -504,8 +522,8 @@ end
 % ---- Where Us and Ud came from ----
 fprintf('\n   Imbalance used:\n');
 for r = 1:number_of_rotors
-    fprintf('   %-8s  Us = %-10.4g kg*m   (%s)     Ud = %-10.4g kg*m^2   (%s)\n', rotor_names{r}, ...
-        static_imbalance_kgm(r), static_source{r}, dynamic_imbalance_kgm2(r), dynamic_source{r});
+    fprintf('   %-8s  Us = %-10.4g kg*m   (%s)     Ud = %-10.4g kg*m^2   (%s)     Izz = %-8.4g kg*m^2 (%s)\n', rotor_names{r}, ...
+        static_imbalance_kgm(r), static_source{r}, dynamic_imbalance_kgm2(r), dynamic_source{r}, Izz_kgm2(r), inertia_source{r});
 end
 
 part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
