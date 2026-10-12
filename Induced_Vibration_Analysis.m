@@ -19,7 +19,7 @@
 %         lateral force, q = kZ axial force (races); even orders q = 2k for rollers
 %       - force at the shaft = blocked force x transmissibility of the rotor on its bearings
 %    5. MOTOR TORQUE RIPPLE AND COGGING (when motor data is entered):
-%       Mz lines at 6 n p x RPM (ripple) and n LCM(slots, 2p) x RPM (cogging)
+%       Mz on the mount = ripple + cogging (datasheet peak values, worst case)
 %    6. GYROSCOPIC MOMENT from motion of the supporting spacecraft:
 %       M = -(spacecraft rate) x (total stored momentum H), H = sum(direction x Izz x speed)
 %
@@ -37,7 +37,9 @@
 %      the rotor's lateral and axial modes only (no rocking mode).
 %    - Imbalance values are the SPECIFIED limits (balance spec), not measurements.
 %    - Not included: structural resonance, broadband noise, rotor flexibility,
-%      localized bearing defects, imbalance harmonics above 1x RPM.
+%      localized bearing defects, imbalance harmonics above 1x RPM, bearing
+%      varying-compliance excitation (small: bearings are preloaded and the
+%      sideways loads are small compared with the preload).
 %
 %  Directions:
 %    lateral = sideways (perpendicular to the shaft)
@@ -94,9 +96,8 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
 % SPIN INERTIA: enter Izz (from CAD), OR the stored momentum H (Izz = H / speed).
 %
 % MOTOR DATA (leave [] until known; the output then says "not included"):
-%   *_motor_pole_pairs, *_motor_slots : from the motor datasheet (slots = 0 if slotless)
-%   *_motor_ripple_Nm  : torque ripple amplitudes (peak) for harmonics n = 1, 2, ...
-%   *_motor_cogging_Nm : cogging torque amplitudes (peak) for harmonics n = 1, 2, ...
+%   *_motor_ripple_Nm  : torque ripple, peak [N*m]   (motor datasheet)
+%   *_motor_cogging_Nm : cogging torque, peak [N*m]  (motor datasheet)
 %
 % Anything required that is left [] stops the script with a list of what to fill in.
 % ------------------------------------------------------------------------
@@ -106,9 +107,10 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
 %   Geometry (catalog): rollers, roller diameter, pitch diameter, cup angle,
 %                       effective roller contact length
 %   Preload           : axial preload on the pair [N] (from assembly spec)
-%   Waviness          : how out-of-round the bearing surfaces are [um], as [bearing A, bearing B]
-%                       (small lobes on the races and rollers - this is what makes a bearing
-%                       vibrate). Take it from the bearing precision class / drawing roundness.
+%   Waviness          : how out-of-round the bearing surfaces are [um], one value for the pair
+%                       (small bumps on the races and rollers - this is what makes a bearing
+%                       vibrate). Ask the bearing supplier. Until then 0.1 um is used: the upper
+%                       end of the range typical for precision bearings (0.01 - 0.1 um).
 % ------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------
@@ -126,10 +128,8 @@ wheel1_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance betw
 wheel1_max_speed_rpm          = 515;      % [RPM]
 wheel1_spin_direction         = -1;       % +1 or -1
 wheel1_position_m             = -0.200;   % [m]      center of mass position along the shaft
-wheel1_motor_pole_pairs       = [];       % [-]      motor pole pairs p          (motor datasheet)
-wheel1_motor_slots            = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
-wheel1_motor_ripple_Nm        = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
-wheel1_motor_cogging_Nm       = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
+wheel1_motor_ripple_Nm        = [];       % [N*m]    torque ripple, peak         (motor datasheet)
+wheel1_motor_cogging_Nm       = [];       % [N*m]    cogging torque, peak        (motor datasheet)
 
 wheel1_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel1_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -137,7 +137,7 @@ wheel1_bearing_pitch_dia_mm   = 39;   % [mm]  pitch diameter         (bearing ca
 wheel1_bearing_cup_angle_deg  = 14;   % [deg] cup (contact) angle    (bearing catalog)
 wheel1_bearing_roller_length_mm   = 8 ;    % [mm]  effective roller contact length (catalog / drawing)
 wheel1_bearing_preload_N          = 500;  % [N]   axial preload on the bearing pair
-wheel1_bearing_waviness_um        = [0.05 0.05];  % [um] waviness (out-of-roundness)  [bearing A, bearing B]
+wheel1_bearing_waviness_um        = 0.1;   % [um] waviness (out-of-roundness), assumed until supplier data
 
 % ------------------------------------------------------------------------
 % 1C. ARM
@@ -154,10 +154,8 @@ arm_plane_spacing_m           = 0.040;    % [m]      COUPLE way 2: distance betw
 arm_max_speed_rpm             = 100;      % [RPM]
 arm_spin_direction            = +1;       % +1 or -1
 arm_position_m                = 0.000;    % [m]      center of mass position along the shaft
-arm_motor_pole_pairs          = [];       % [-]      motor pole pairs p          (motor datasheet)
-arm_motor_slots               = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
-arm_motor_ripple_Nm           = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
-arm_motor_cogging_Nm          = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
+arm_motor_ripple_Nm           = [];       % [N*m]    torque ripple, peak         (motor datasheet)
+arm_motor_cogging_Nm          = [];       % [N*m]    cogging torque, peak        (motor datasheet)
 
 arm_bearing_rollers           = 20;   % [-]   number of rollers      (bearing catalog)
 arm_bearing_roller_dia_mm     = 8;    % [mm]  mean roller diameter   (bearing catalog)
@@ -165,7 +163,7 @@ arm_bearing_pitch_dia_mm      = 55;   % [mm]  pitch diameter         (bearing ca
 arm_bearing_cup_angle_deg     = 15;   % [deg] cup (contact) angle    (bearing catalog)
 arm_bearing_roller_length_mm   = 10;    % [mm]  effective roller contact length (catalog / drawing)
 arm_bearing_preload_N          = 900;  % [N]   axial preload on the bearing pair
-arm_bearing_waviness_um        = [0.05 0.05];  % [um] waviness (out-of-roundness)  [bearing A, bearing B]
+arm_bearing_waviness_um        = 0.1;   % [um] waviness (out-of-roundness), assumed until supplier data
 
 % ------------------------------------------------------------------------
 % 1D. WHEEL 2
@@ -182,10 +180,8 @@ wheel2_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance betw
 wheel2_max_speed_rpm          = 515;      % [RPM]
 wheel2_spin_direction         = -1;       % +1 or -1
 wheel2_position_m             = 0.200;    % [m]      center of mass position along the shaft
-wheel2_motor_pole_pairs       = [];       % [-]      motor pole pairs p          (motor datasheet)
-wheel2_motor_slots            = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
-wheel2_motor_ripple_Nm        = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
-wheel2_motor_cogging_Nm       = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
+wheel2_motor_ripple_Nm        = [];       % [N*m]    torque ripple, peak         (motor datasheet)
+wheel2_motor_cogging_Nm       = [];       % [N*m]    cogging torque, peak        (motor datasheet)
 
 wheel2_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel2_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -193,7 +189,7 @@ wheel2_bearing_pitch_dia_mm   = 39;   % [mm]  pitch diameter         (bearing ca
 wheel2_bearing_cup_angle_deg  = 14;   % [deg] cup (contact) angle    (bearing catalog)
 wheel2_bearing_roller_length_mm   = 8 ;    % [mm]  effective roller contact length (catalog / drawing)
 wheel2_bearing_preload_N          = 500;  % [N]   axial preload on the bearing pair
-wheel2_bearing_waviness_um        = [0.05 0.05];  % [um] waviness (out-of-roundness)  [bearing A, bearing B]
+wheel2_bearing_waviness_um        = 0.1;   % [um] waviness (out-of-roundness), assumed until supplier data
 
 % ------------------------------------------------------------------------
 % 1E. PLOTS
@@ -235,12 +231,6 @@ for p = 1:numel(rotor_prefixes)
     if isempty(eval([pre, '_couple_imbalance_kgm2'])) && isempty(eval([pre, '_plane_spacing_m']))
         missing_inputs{end+1} = [pre, ' couple imbalance: fill ONE of _couple_imbalance_kgm2, _plane_spacing_m'];
     end
-    if ~isempty(eval([pre, '_motor_ripple_Nm'])) && isempty(eval([pre, '_motor_pole_pairs']))
-        missing_inputs{end+1} = [pre, '_motor_pole_pairs  (needed for the ripple you entered)'];
-    end
-    if ~isempty(eval([pre, '_motor_cogging_Nm'])) && (isempty(eval([pre, '_motor_pole_pairs'])) || isempty(eval([pre, '_motor_slots'])))
-        missing_inputs{end+1} = [pre, '_motor_pole_pairs and _motor_slots  (needed for the cogging you entered)'];
-    end
 end
 if numel(spacecraft_rate_rad_s) ~= 3
     missing_inputs{end+1} = 'spacecraft_rate_rad_s must have 3 values [x y z]';
@@ -274,8 +264,6 @@ eccentricity_entered      = {wheel1_eccentricity_um,        arm_eccentricity_um,
 balance_grade_entered     = {wheel1_balance_grade_mm_s,     arm_balance_grade_mm_s,     wheel2_balance_grade_mm_s};
 couple_imbalance_entered  = {wheel1_couple_imbalance_kgm2,  arm_couple_imbalance_kgm2,  wheel2_couple_imbalance_kgm2};
 plane_spacing_entered     = {wheel1_plane_spacing_m,        arm_plane_spacing_m,        wheel2_plane_spacing_m};
-motor_pole_pairs_entered  = {wheel1_motor_pole_pairs,       arm_motor_pole_pairs,       wheel2_motor_pole_pairs};
-motor_slots_entered       = {wheel1_motor_slots,            arm_motor_slots,            wheel2_motor_slots};
 motor_ripple_entered      = {wheel1_motor_ripple_Nm,        arm_motor_ripple_Nm,        wheel2_motor_ripple_Nm};
 motor_cogging_entered     = {wheel1_motor_cogging_Nm,       arm_motor_cogging_Nm,       wheel2_motor_cogging_Nm};
 
@@ -287,8 +275,8 @@ bearing_roller_length_mm = [wheel1_bearing_roller_length_mm, arm_bearing_roller_
 bearing_preload_N        = [wheel1_bearing_preload_N,        arm_bearing_preload_N,        wheel2_bearing_preload_N];
 
 % Waviness: rows = [Wheel 1; Arm; Wheel 2], columns = [bearing A, bearing B]   [m]
-% (the same out-of-roundness is used for the outer race, inner race and rollers)
-waviness_m = 1e-6 * [wheel1_bearing_waviness_um; arm_bearing_waviness_um; wheel2_bearing_waviness_um];
+% (one value per pair, used for both bearings and for the outer race, inner race and rollers)
+waviness_m = 1e-6 * [wheel1_bearing_waviness_um; arm_bearing_waviness_um; wheel2_bearing_waviness_um] * [1 1];
 
 
 %% ========================================================================
@@ -359,32 +347,11 @@ static_imbalance_force_N    = static_imbalance_kgm   .* sqrt(speed_rad_s .^ 4 + 
 dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* sqrt(speed_rad_s .^ 4 + spin_accel_rad_s2 .^ 2);
 
 % ---- 4B. Motor torque ripple and cogging (when motor data is entered) ----
-% Ripple  : three-phase commutation, lines at 6 n p x fr   (n = 1, 2, ...)
-% Cogging : lines at n LCM(slots, 2p) x fr                 (none if slotless)
-% The stator reaction passes straight into the structure, so each line's amplitude is a
-% torque Mz on the mount (no speed-loop attenuation assumed: worst case).
-motor_line_rotor = [];  motor_line_source = {};  motor_line_n = [];  motor_line_freq_hz = [];  motor_line_Nm = [];
-for r = 1:number_of_rotors
-    if ~isempty(motor_pole_pairs_entered{r})
-        p_pairs = motor_pole_pairs_entered{r};
-        for n = 1:numel(motor_ripple_entered{r})
-            motor_line_rotor(end+1) = r;  motor_line_source{end+1} = 'Torque ripple';  motor_line_n(end+1) = n;
-            motor_line_freq_hz(end+1) = 6 * n * p_pairs * speed_hz(r);
-            motor_line_Nm(end+1) = motor_ripple_entered{r}(n);
-        end
-        if ~isempty(motor_slots_entered{r}) && motor_slots_entered{r} > 0
-            cogging_order = lcm(round(motor_slots_entered{r}), round(2 * p_pairs));   % cogging periods per revolution
-            for n = 1:numel(motor_cogging_entered{r})
-                motor_line_rotor(end+1) = r;  motor_line_source{end+1} = 'Cogging';  motor_line_n(end+1) = n;
-                motor_line_freq_hz(end+1) = n * cogging_order * speed_hz(r);
-                motor_line_Nm(end+1) = motor_cogging_entered{r}(n);
-            end
-        end
-    end
-end
+% The stator reaction passes straight into the structure, so ripple and cogging are a
+% twist Mz on the mount. Both are added (worst case, no speed-loop attenuation).
 motor_torque_Nm = zeros(1, number_of_rotors);
 for r = 1:number_of_rotors
-    motor_torque_Nm(r) = sum(motor_line_Nm(motor_line_rotor == r));      % all lines added (worst case)
+    motor_torque_Nm(r) = sum([motor_ripple_entered{r}, 0]) + sum([motor_cogging_entered{r}, 0]);
 end
 
 % ---- 4C. Gyroscopic moment from motion of the supporting spacecraft ----
@@ -726,30 +693,14 @@ hand_value = [-w(2) * total_H; w(1) * total_H; 0];          % -(w x [0 0 H]) exp
 check_names{end+1}  = '14. Gyroscopic moment = -(spacecraft rate x total momentum)';
 check_passed(end+1) = max(abs(hand_value - sum(gyro_moment_Nm, 2))) <= check_tol * max([abs(hand_value); 1e-12]);
 
-% 15. Motor lines: ripple at 6 n p fr, cogging at n LCM(slots, 2p) fr, Mz = sum of amplitudes
-motor_error = 0;
-for i = 1:numel(motor_line_n)
-    r = motor_line_rotor(i);
-    if strcmp(motor_line_source{i}, 'Torque ripple')
-        hand_value = 6 * motor_line_n(i) * motor_pole_pairs_entered{r} * max_speed_rpm(r) / 60;
-    else
-        a = round(motor_slots_entered{r});  b = round(2 * motor_pole_pairs_entered{r});
-        hand_value = motor_line_n(i) * (a * b / gcd(a, b)) * max_speed_rpm(r) / 60;
-    end
-    motor_error = max(motor_error, abs(hand_value - motor_line_freq_hz(i)) / hand_value);
-end
+% 15. Motor twist = ripple + cogging (blank = 0)
+hand_value = zeros(1, number_of_rotors);
 for r = 1:number_of_rotors
-    hand_value = sum([motor_ripple_entered{r}(:); 0]);
-    if ~isempty(motor_slots_entered{r}) && motor_slots_entered{r} > 0
-        hand_value = hand_value + sum([motor_cogging_entered{r}(:); 0]);
-    end
-    if isempty(motor_pole_pairs_entered{r})
-        hand_value = 0;
-    end
-    motor_error = max(motor_error, abs(hand_value - motor_torque_Nm(r)));
+    if ~isempty(motor_ripple_entered{r}),  hand_value(r) = hand_value(r) + motor_ripple_entered{r};  end
+    if ~isempty(motor_cogging_entered{r}), hand_value(r) = hand_value(r) + motor_cogging_entered{r}; end
 end
-check_names{end+1}  = '15. Motor ripple/cogging frequencies and torque';
-check_passed(end+1) = motor_error <= 1e-9;
+check_names{end+1}  = '15. Motor twist Mz = ripple + cogging';
+check_passed(end+1) = max(abs(hand_value - motor_torque_Nm)) <= 1e-12;
 
 number_of_checks = numel(check_passed);
 all_checks_ok    = all(check_passed);
@@ -941,16 +892,11 @@ for part = 1:5
     elseif part == 4
         fprintf('\n   Motor torque ripple and cogging (Mz on the mount):\n');
         for r = 1:number_of_rotors
-            if isempty(motor_pole_pairs_entered{r})
+            if isempty(motor_ripple_entered{r}) && isempty(motor_cogging_entered{r})
                 fprintf('   %-8s not included (motor data not entered)\n', rotor_names{r});
             else
-                for i = find(motor_line_rotor == r)
-                    fprintf('   %-8s %-14s n = %d   %9.2f Hz   %.4g N*m\n', rotor_names{r}, motor_line_source{i}, ...
-                        motor_line_n(i), motor_line_freq_hz(i), motor_line_Nm(i));
-                end
-                if ~any(motor_line_rotor == r)
-                    fprintf('   %-8s pole pairs given, but no ripple/cogging amplitudes entered\n', rotor_names{r});
-                end
+                fprintf('   %-8s ripple %.4g N*m + cogging %.4g N*m = %.4g N*m\n', rotor_names{r}, ...
+                    sum([motor_ripple_entered{r}, 0]), sum([motor_cogging_entered{r}, 0]), motor_torque_Nm(r));
             end
         end
         fprintf('\n   Gyroscopic moment: spacecraft rate [%g %g %g] rad/s\n', spacecraft_rate_rad_s);
@@ -972,10 +918,11 @@ for part = 1:5
         fprintf('     line up (phases are unknown). Real loads are equal or lower.\n');
         fprintf('   - Imbalance values are the specified balance limits. If Ud was not entered it is the static\n');
         fprintf('     tolerance in two planes, opposed (worst case). Bearing loads follow from the specified waviness.\n');
-        fprintf('   - Mz TOTAL = net ramp twist + all motor ripple/cogging lines. Gyroscopic moment is added to Mx, My.\n');
+        fprintf('   - Mz TOTAL = net ramp twist + motor ripple and cogging. Gyroscopic moment is added to Mx, My.\n');
         fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Imbalance and bearing waviness at their specified limits.\n');
-        fprintf('   NOT INCLUDED: structural resonance, broadband noise, rotor flexibility, localized bearing defects, harmonics above 1x RPM.\n');
-        if all(cellfun(@isempty, motor_pole_pairs_entered))
+        fprintf('   NOT INCLUDED: structural resonance, broadband noise, rotor flexibility, localized bearing defects, harmonics above 1x RPM,\n');
+        fprintf('                 bearing varying compliance (small: bearings preloaded).\n');
+        if all(cellfun(@isempty, [motor_ripple_entered, motor_cogging_entered]))
             fprintf('   NOT YET ENTERED: motor ripple/cogging data (that source is zero until entered).\n');
         end
         if ~isempty(report_arm_rpm)
