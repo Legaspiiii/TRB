@@ -6,9 +6,10 @@
 %  Sources:
 %    1. IMBALANCE (each rotor), once per revolution (1x RPM)
 %       - Static imbalance  : center of mass is off the spin axis -> lateral force
-%                             F = mass x eccentricity x speed^2
+%                             F = Us x speed^2,   Us = mass x eccentricity
 %       - Dynamic imbalance : rotor sits slightly tilted          -> moment
-%                             M = (Izz - I_perpendicular) x tilt x speed^2
+%                             M = Ud x speed^2,   Ud = (Izz - I_perpendicular) x tilt
+%                             (Us and Ud can also be typed in directly)
 %
 %    2. BEARINGS (each rotor's tapered roller bearing pair)
 %       Rollers passing over tiny bumps on the rings give small kicks at
@@ -41,6 +42,7 @@
 %         PART 3  BEARINGS          (harmonics only)
 %         PART 4  ALL TOGETHER      <- the final answer, at the very bottom
 %       The final answer is also saved as final_Fx_N ... final_Mz_Nm.
+%    4. A SELF-CHECK prints first: every line should say PASS.
 %  ========================================================================
 
 clear; clc;
@@ -62,6 +64,18 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
                                   %       ratio as the max speeds). Use [] for none.
 
 % ------------------------------------------------------------------------
+% STATIC (Us) AND DYNAMIC (Ud) IMBALANCE -- TWO WAYS TO ENTER THEM
+%   a) Leave Us and Ud as []  -> the script calculates them:
+%        Us = mass x eccentricity              [kg*m]
+%        Ud = (Izz - I_perpendicular) x tilt   [kg*m^2]
+%   b) Type a number          -> the script uses your number instead
+%      (e.g. from a balance report or spec). Convert units first:
+%        Us: 1 g*mm = 1e-6 kg*m      1 g*cm = 1e-5 kg*m
+%        Ud: 1 g*mm^2 = 1e-9 kg*m^2  1 g*cm^2 = 1e-7 kg*m^2
+%   Each one is independent: you can enter Us and let Ud be calculated.
+% ------------------------------------------------------------------------
+
+% ------------------------------------------------------------------------
 % 1B. WHEEL 1
 % ------------------------------------------------------------------------
 wheel1_name               = 'Wheel 1';
@@ -71,6 +85,8 @@ wheel1_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel1_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel1_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
 wheel1_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
+wheel1_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
+wheel1_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
 wheel1_max_speed_rpm      = 515;      % [RPM]
 wheel1_spin_direction     = -1;       % +1 or -1
 wheel1_position_m         = -0.200;   % [m]      center of mass position along the shaft
@@ -90,6 +106,8 @@ arm_Ixx_kgm2              = 0.340;    % [kg*m^2] from CAD, at the center of mass
 arm_Iyy_kgm2              = 0.004;    % [kg*m^2] from CAD (about the arm's own length)
 arm_Izz_kgm2              = 0.350;    % [kg*m^2] from CAD, about the shaft
 arm_tilt_deg              = 0.03;     % [deg]    how crooked it sits on the shaft
+arm_static_imbalance_kgm      = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
+arm_dynamic_imbalance_kgm2    = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
 arm_max_speed_rpm         = 100;      % [RPM]
 arm_spin_direction        = +1;       % +1 or -1
 arm_position_m            = 0.000;    % [m]      center of mass position along the shaft
@@ -109,6 +127,8 @@ wheel2_Ixx_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel2_Iyy_kgm2           = 0.017;    % [kg*m^2] from CAD, at the center of mass
 wheel2_Izz_kgm2           = 0.034;    % [kg*m^2] from CAD, about the shaft
 wheel2_tilt_deg           = 0.04;     % [deg]    how crooked it sits on the shaft
+wheel2_static_imbalance_kgm   = [];       % [kg*m]   Us OPTIONAL. Leave [] to calculate: mass x eccentricity
+wheel2_dynamic_imbalance_kgm2 = [];       % [kg*m^2] Ud OPTIONAL. Leave [] to calculate: (Izz - I_perp) x tilt
 wheel2_max_speed_rpm      = 515;      % [RPM]
 wheel2_spin_direction     = -1;       % +1 or -1
 wheel2_position_m         = 0.200;    % [m]      center of mass position along the shaft
@@ -145,6 +165,10 @@ max_speed_rpm    = [wheel1_max_speed_rpm,   arm_max_speed_rpm,   wheel2_max_spee
 spin_direction   = [wheel1_spin_direction,  arm_spin_direction,  wheel2_spin_direction];
 position_m       = [wheel1_position_m,      arm_position_m,      wheel2_position_m];
 
+% Entered Us / Ud (cells, because [] means "calculate it")
+static_imbalance_entered  = {wheel1_static_imbalance_kgm,   arm_static_imbalance_kgm,   wheel2_static_imbalance_kgm};
+dynamic_imbalance_entered = {wheel1_dynamic_imbalance_kgm2, arm_dynamic_imbalance_kgm2, wheel2_dynamic_imbalance_kgm2};
+
 bearing_rollers       = [wheel1_bearing_rollers,       arm_bearing_rollers,       wheel2_bearing_rollers];
 bearing_roller_dia_mm = [wheel1_bearing_roller_dia_mm, arm_bearing_roller_dia_mm, wheel2_bearing_roller_dia_mm];
 bearing_pitch_dia_mm  = [wheel1_bearing_pitch_dia_mm,  arm_bearing_pitch_dia_mm,  wheel2_bearing_pitch_dia_mm];
@@ -167,11 +191,29 @@ ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
 %  SECTION 4: STATIC AND DYNAMIC IMBALANCE  (1x RPM)
 %  ========================================================================
 
-% Static imbalance: center of mass off the spin axis -> lateral force
-static_imbalance_force_N = mass_kg .* eccentricity_m .* speed_rad_s .^ 2;
+% Step 1: calculated values (used unless you typed your own Us / Ud)
+static_imbalance_kgm   = mass_kg .* eccentricity_m;                                              % Us [kg*m]
+dynamic_imbalance_kgm2 = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad;   % Ud [kg*m^2]
+static_source  = {'calculated', 'calculated', 'calculated'};
+dynamic_source = {'calculated', 'calculated', 'calculated'};
 
-% Dynamic imbalance: rotor tilted on the spin axis -> moment
-dynamic_imbalance_moment_Nm = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad .* speed_rad_s .^ 2;
+% Step 2: replace with your own number wherever you entered one
+for r = 1:number_of_rotors
+    if ~isempty(static_imbalance_entered{r})
+        static_imbalance_kgm(r) = static_imbalance_entered{r};
+        static_source{r} = 'entered';
+    end
+    if ~isempty(dynamic_imbalance_entered{r})
+        dynamic_imbalance_kgm2(r) = dynamic_imbalance_entered{r};
+        dynamic_source{r} = 'entered';
+    end
+end
+
+% Static imbalance: center of mass off the spin axis -> lateral force   F = Us x speed^2
+static_imbalance_force_N = static_imbalance_kgm .* speed_rad_s .^ 2;
+
+% Dynamic imbalance: rotor tilted on the spin axis -> moment            M = Ud x speed^2
+dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* speed_rad_s .^ 2;
 
 
 %% ========================================================================
@@ -270,6 +312,83 @@ final_Mz_Nm = all_total(6);
 
 
 %% ========================================================================
+%  SECTION 6B: SELF-CHECK  (the script checks its own math every run)
+%  ------------------------------------------------------------------------
+%  Each check redoes a result a DIFFERENT way (by hand formula or a known
+%  identity) and compares it with what the script calculated above.
+%  PASS = they agree. Any FAIL means do not trust the results.
+%  ========================================================================
+
+check_names  = {};
+check_passed = [];
+check_tol    = 1e-9;      % relative tolerance
+
+% 1. Known textbook answer: 1 kg, 1 mm offset, 60 RPM (1 rev/s) -> F = 0.001 x (2*pi)^2 = 0.0394784 N
+hand_value = 1 * 0.001 * (2 * pi * 60 / 60) ^ 2;
+check_names{end+1}  = '1. Textbook case: 1 kg, 1 mm, 60 RPM gives 0.0394784 N';
+check_passed(end+1) = abs(hand_value - 0.0394784176) <= 1e-9;
+
+% 2. Static force by hand, using speed in Hz:  F = Us x (2*pi*f)^2
+hand_value = static_imbalance_kgm .* (2 * pi * speed_hz) .^ 2;
+check_names{end+1}  = '2. Static imbalance force   F = Us x speed^2';
+check_passed(end+1) = max(abs(hand_value - static_imbalance_force_N)) <= check_tol * max(abs(hand_value));
+
+% 3. Calculated Us = mass x eccentricity (only rotors where Us was not entered)
+use_calc = strcmp(static_source, 'calculated');
+hand_value = mass_kg .* eccentricity_um / 1e6;
+check_names{end+1}  = '3. Calculated Us = mass x eccentricity';
+check_passed(end+1) = all(abs(hand_value(use_calc) - static_imbalance_kgm(use_calc)) <= check_tol * max([abs(hand_value), eps]));
+
+% 4. Dynamic moment by hand:  M = Ud x (2*pi*f)^2
+hand_value = dynamic_imbalance_kgm2 .* (2 * pi * speed_hz) .^ 2;
+check_names{end+1}  = '4. Dynamic imbalance moment M = Ud x speed^2';
+check_passed(end+1) = max(abs(hand_value - dynamic_imbalance_moment_Nm)) <= check_tol * max([abs(hand_value), eps]);
+
+% 5. Calculated Ud = (Izz - I_perp) x tilt (only rotors where Ud was not entered)
+use_calc = strcmp(dynamic_source, 'calculated');
+hand_value = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_deg * pi / 180;
+check_names{end+1}  = '5. Calculated Ud = (Izz - I_perp) x tilt';
+check_passed(end+1) = all(abs(hand_value(use_calc) - dynamic_imbalance_kgm2(use_calc)) <= check_tol * max([abs(hand_value), eps]));
+
+% 6. Bearing identities (exact for any bearing):
+%    cup pass + cone pass = number of rollers,  cup pass = rollers x (1 - cage)
+identity_1 = bearing_harmonic(:, 2) + bearing_harmonic(:, 3) - bearing_rollers';
+identity_2 = bearing_harmonic(:, 2) - bearing_rollers' .* (1 - bearing_harmonic(:, 1));
+check_names{end+1}  = '6. Bearing identities: cup + cone = rollers, cup = rollers x (1 - cage)';
+check_passed(end+1) = max(abs([identity_1; identity_2])) <= 1e-9;
+
+% 7. Bearing force = rollers' kick x 4 harmonics, axial = lateral x tan(cup angle)
+hand_lateral = 4 * bearing_kick_ratio * static_imbalance_force_N;
+hand_axial   = hand_lateral .* sin(bearing_cup_angle_deg * pi / 180) ./ cos(bearing_cup_angle_deg * pi / 180);
+check_names{end+1}  = '7. Bearing lateral and axial force';
+check_passed(end+1) = max(abs([hand_lateral - bearing_lateral_N, hand_axial - bearing_axial_N])) <= check_tol * max([hand_lateral, eps]);
+
+% 8. Twist by hand:  Mz = Izz x speed / ramp time
+hand_value = Izz_kgm2 .* (2 * pi * max_speed_rpm / 60) / ramp_time_s;
+check_names{end+1}  = '8. Ramp twist Mz = Izz x speed / ramp time';
+check_passed(end+1) = max(abs(hand_value - abs(imbalance_loads(6, :)))) <= check_tol * max(hand_value);
+
+% 9. Tipping moment = dynamic imbalance + sideways force x distance
+hand_value = dynamic_imbalance_moment_Nm + static_imbalance_force_N .* abs(position_m - reference_position_m);
+check_names{end+1}  = '9. Tipping moment = dynamic + force x distance';
+check_passed(end+1) = max(abs(hand_value - imbalance_loads(4, :))) <= check_tol * max([hand_value, eps]);
+
+% 10. Rotating loads: peak Fx = peak Fy and peak Mx = peak My, everywhere
+check_names{end+1}  = '10. Fx = Fy and Mx = My for every part';
+check_passed(end+1) = isequal(imbalance_loads(1, :), imbalance_loads(2, :)) && isequal(imbalance_loads(4, :), imbalance_loads(5, :)) ...
+                   && isequal(bearing_loads(1, :), bearing_loads(2, :)) && isequal(bearing_loads(4, :), bearing_loads(5, :));
+
+% 11. TOTAL = arm + wheel 1 + wheel 2 + all bearings  (Mz: net of the signed twists)
+hand_total    = sum(imbalance_loads, 2) + sum(bearing_loads, 2);
+hand_total(6) = abs(hand_total(6));
+check_names{end+1}  = '11. TOTAL = arm + wheels + bearings';
+check_passed(end+1) = max(abs(hand_total - all_total)) <= check_tol * max(abs(hand_total));
+
+number_of_checks = numel(check_passed);
+all_checks_ok    = all(check_passed);
+
+
+%% ========================================================================
 %  SECTION 7: PLOTS
 %  ------------------------------------------------------------------------
 %  Plot 1: sideways force (Fx = Fy) vs RPM    Plot 2: axial force (Fz) vs RPM
@@ -347,68 +466,25 @@ row_labels = {'Fx  [N]   sideways', 'Fy  [N]   sideways', 'Fz  [N]   along shaft
               'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist (ramps)'};
 part_line  = repmat('=', 1, 90);
 
-part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
-                sprintf('PART 2: MOMENTUM WHEELS  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
-                'PART 3: BEARINGS  -  harmonics of each rotor''s RPM', ...
-                'PART 4: ALL TOGETHER  -  FINAL ANSWER  (arm + wheels + bearings)'};
-part_columns = {{'Arm'}, ...
-                {rotor_names{1}, rotor_names{3}, 'Wheels total'}, ...
-                {[rotor_names{1}, ' brg'], [rotor_names{2}, ' brg'], [rotor_names{3}, ' brg'], 'Bearings total'}, ...
-                {'Arm', 'Wheels', 'Bearings', 'TOTAL'}};
-part_values  = {arm_loads, ...
-                [wheel_loads, wheels_total], ...
-                [bearing_loads, bearings_total], ...
-                [arm_loads, wheels_total, bearings_total, all_total]};
-
-for part = 1:4
-    columns = part_columns{part};
-    values  = part_values{part};
-    fprintf('\n%s\n %s\n%s\n', part_line, part_titles{part}, part_line);
-    fprintf('   %-26s', '');
-    fprintf('%16s', columns{:});
-    fprintf('\n');
-    for k = 1:6
-        fprintf('   %-26s', row_labels{k});
-        fprintf('%16.4g', values(k, :));
-        fprintf('\n');
+% ---- Self-check results (from SECTION 6B) ----
+fprintf('\n%s\n SELF-CHECK  -  script math vs hand calculations\n%s\n', part_line, part_line);
+for k = 1:number_of_checks
+    if check_passed(k)
+        fprintf('   PASS   %s\n', check_names{k});
+    else
+        fprintf('   FAIL   %s\n', check_names{k});
     end
+end
+if all_checks_ok
+    fprintf('   ALL %d CHECKS PASSED\n', number_of_checks);
+else
+    fprintf('   *** %d OF %d CHECKS FAILED - DO NOT TRUST THE RESULTS BELOW ***\n', sum(~check_passed), number_of_checks);
+end
 
-    % Extra information for each part
-    if part == 1
-        fprintf('\n   Fx = Fy: static imbalance %.4g N\n', static_imbalance_force_N(arm_index));
-        fprintf('   Mx = My: dynamic imbalance %.4g N*m + force x distance %.4g N*m\n', ...
-            dynamic_imbalance_moment_Nm(arm_index), lever_arm_m(arm_index) * static_imbalance_force_N(arm_index));
-        fprintf('   Frequency: 1x RPM = %.2f Hz\n', speed_hz(arm_index));
-    elseif part == 2
-        for r = wheel_columns
-            fprintf('\n   %s:  Fx = Fy static imbalance %.4g N  |  Mx = My: dynamic imbalance %.4g + force x distance %.4g N*m  |  1x = %.2f Hz', ...
-                rotor_names{r}, static_imbalance_force_N(r), dynamic_imbalance_moment_Nm(r), ...
-                lever_arm_m(r) * static_imbalance_force_N(r), speed_hz(r));
-        end
-        fprintf('\n');
-    elseif part == 3
-        fprintf('\n   Each harmonic (frequency = harmonic x RPM / 60):\n');
-        fprintf('   %-10s %-13s %10s %12s %14s %14s\n', 'Rotor', 'Harmonic', 'x RPM', 'Freq [Hz]', 'Fx = Fy [N]', 'Fz [N]');
-        for r = 1:number_of_rotors
-            for k = 1:number_of_harmonics
-                fprintf('   %-10s %-13s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, harmonic_names{k}, ...
-                    bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
-            end
-        end
-    elseif part == 4
-        fprintf('\n   Mz TOTAL is the NET twist: the wheels twist opposite to the arm, so they cancel.\n');
-        fprintf('   Each motor mount still feels its own twist (see PART 1 and PART 2).\n');
-        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt and bearing kick ratio are estimates.\n');
-        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, test-based bearing amplitudes.\n');
-        if ~isempty(report_arm_rpm)
-            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; every value grows with speed squared)\n');
-            fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
-            for i = 1:numel(report_arm_rpm)
-                speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
-                fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
-                    all_total(1) * speed_ratio ^ 2, all_total(3) * speed_ratio ^ 2, all_total(4) * speed_ratio ^ 2);
-            end
-        end
-    end
+% ---- Where Us and Ud came from ----
+fprintf('\n   Imbalance used:\n');
+for r = 1:number_of_rotors
+    fprintf('   %-8s  Us = %-10.4g kg*m   (%s)     Ud = %-10.4g kg*m^2   (%s)\n', rotor_names{r}, ...
+        static_imbalance_kgm(r), static_source{r}, dynamic_imbalance_kgm2(r), dynamic_source{r});
 end
 fprintf('%s\n', part_line);
