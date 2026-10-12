@@ -6,7 +6,7 @@ Any machine with spinning parts pushes on the structure that holds it. The pushe
 
 The first part of this paper covers the fundamentals in general terms. It explains where induced loads come from, the physics and equations behind each source, how loads are described in a coordinate system, and how the field normally characterizes them before and after hardware exists.
 
-The second part applies those ideas to our assembly, which consists of two momentum wheels and a rotating arm, each on its own stationary shaft with a pair of tapered roller bearings. With no test data available, a purely analytical method was developed that estimates the six load components Fx, Fy, Fz, Mx, My and Mz from CAD mass properties, the eccentricity specification, the operating speeds, and the bearing geometry, preload and specified imperfections. The paper describes the model, the choices made along the way and the reasons for them, and what the method does not cover. The resulting loads are conservative, hard-mounted estimates intended for early design, and they are meant to be refined as balance data, supplier data and test results become available.
+The second part applies those ideas to our assembly, which consists of two momentum wheels and a rotating arm, each on its own stationary shaft with a pair of tapered roller bearings. With no test data available, a purely analytical method was developed that estimates the six load components Fx, Fy, Fz, Mx, My and Mz from CAD mass properties, the eccentricity specification, the operating speeds, and the bearing geometry, preload and waviness. The paper describes the model, the choices made along the way and the reasons for them, and what the method does not cover. The resulting loads are conservative, hard-mounted estimates intended for early design, and they are meant to be refined as balance data, supplier data and test results become available.
 
 ## 1. Introduction
 
@@ -138,7 +138,7 @@ Orders q = kZ ± 1 therefore produce a lateral force and q = kZ an axial force, 
 
 $$F_{lat} = \frac{Z}{2}\,k_r A\cos\alpha \;\;(\text{each order } kZ\pm1), \qquad F_{ax} = Z\,k_r A\sin\alpha \;\;(q = kZ)$$ {#fwave}
 
-On a stationary race these lines fall at k times its race pass frequency. On a rotating race they fall at k times its race pass frequency plus or minus the shaft frequency for the lateral lines, and at k times the race pass frequency for the axial line. Waviness on the rolling elements matters for even orders q = 2k, which change the element diameter by 2A; it gives lateral lines at 2k f_b ± f_c and an axial line at 2k f_b. An element that is oversize by Δ carries extra load and travels with the cage, giving a lateral force k_r Δ cos α at the cage frequency. Because the elements sit at the contact angle, every lateral disturbance has an axial partner:
+On a stationary race these lines fall at k times its race pass frequency. On a rotating race they fall at k times its race pass frequency plus or minus the shaft frequency for the lateral lines, and at k times the race pass frequency for the axial line. Waviness on the rolling elements matters for even orders q = 2k, which change the element diameter by 2A; it gives lateral lines at 2k f_b ± f_c and an axial line at 2k f_b. Because the elements sit at the contact angle, every lateral disturbance has an axial partner:
 
 $$F_{ax} = F_{lat}\tan\alpha$$ {#fax}
 
@@ -150,7 +150,9 @@ $$f_n = \frac{1}{2\pi}\sqrt{\frac{K}{m}}$$ {#fn}
 
 $$F_{shaft} = F_{blocked}\,\frac{r^2}{\sqrt{\left(1-r^2\right)^2 + \left(2\zeta r\right)^2}}, \qquad r = \frac{f}{f_n}$$ {#transmit}
 
-Because bearing contacts are very stiff, f_n is usually several kilohertz, far above the bearing frequencies, and the transmitted force is a small fraction of the blocked force. The model is linear about the preloaded state and is valid only while the imperfections are small compared with the preload deflection δ_0, so that no rolling element unloads.
+Because bearing contacts are very stiff, f_n is usually several kilohertz, far above the bearing frequencies, and the transmitted force is a small fraction of the blocked force. The model is linear about the preloaded state and is valid only while the waviness is small compared with the preload deflection δ_0, so that no rolling element unloads.
+
+Even a perfectly made bearing is not entirely quiet. When it carries a sideways load, the number of rolling elements sharing that load changes as they move around, so the bearing stiffness varies slightly at the race pass frequency. This is known as varying compliance. In an axially preloaded pair every element is loaded evenly by the preload, and the sideways loads from imbalance are small by comparison, so this effect is small and is usually neglected.
 
 ### 2.5 Motor-induced vibration
 
@@ -220,7 +222,7 @@ $$L_{\mathrm{total}} \le \sum_i L_i$$ {#superposition}
 |---|---|---|---|
 | Static imbalance | Fx, Fy | Once per revolution | Yes, from mass and eccentricity |
 | Couple (dynamic) imbalance | Mx, My | Once per revolution | Yes, from the balance specification |
-| Bearings | Fx, Fy, and Fz for angular contact bearings | Fixed non-integer multiples of shaft speed | Frequencies yes; amplitudes from geometry, preload and specified imperfections |
+| Bearings | Fx, Fy, and Fz for angular contact bearings | Fixed non-integer multiples of shaft speed | Frequencies yes; amplitudes from geometry, preload and waviness |
 | Motor reaction torque | Mz | During speed changes | Yes, from spin inertia and ramp time |
 | Motor ripple and cogging | Mz | Multiples set by pole and slot counts | Frequencies yes; amplitudes from datasheet or test |
 | Broadband noise | All components | Spread across a wide range | No, measured only |
@@ -317,13 +319,12 @@ The same set of inputs is supplied separately for each wheel and for the arm.
 | Maximum (hold) speed | N | rev/min | Operating requirement |
 | Spin direction | ±1 | – | Design |
 | Position of the center of mass along the shaft | z | m | CAD |
-| Higher imbalance harmonics (optional): h, C_f, C_m | – | –, kg·m, kg·m² | Specification or test |
-| Motor pole pairs and stator slots | p, N_s | – | Motor datasheet |
-| Motor torque ripple and cogging amplitudes, by harmonic | T_ripple, T_cog | N·m | Motor datasheet or test |
+| Motor torque ripple, peak | T_ripple | N·m | Motor datasheet |
+| Motor cogging torque, peak | T_cog | N·m | Motor datasheet |
 
 ### 5.2 Bearing inputs
 
-Each rotating part has its own pair of tapered roller bearings, bearing A and bearing B. Their geometry comes from the manufacturer's catalog for the selected part number, and the imperfection amplitudes are entered separately for each bearing.
+Each rotating part has its own pair of tapered roller bearings, bearing A and bearing B. Their geometry comes from the manufacturer's catalog for the selected part number. A single waviness value is entered for each pair.
 
 | Input | Symbol | Units | Source |
 |---|---|---|---|
@@ -333,13 +334,9 @@ Each rotating part has its own pair of tapered roller bearings, bearing A and be
 | Contact (cup) angle | α | deg | Bearing catalog |
 | Effective roller contact length | l | mm | Bearing catalog or drawing |
 | Axial preload on the bearing pair | F_pre | N | Assembly specification |
-| Bearing radial stiffness (optional) | K_rad | N/m | Supplier, when available |
-| Outer race waviness, bearing A and B | A_o | µm | Bearing precision class or drawing |
-| Inner race waviness, bearing A and B | A_i | µm | Bearing precision class or drawing |
-| Roller waviness, bearing A and B | A_b | µm | Bearing precision class or drawing |
-| Roller diameter variation, bearing A and B | Δ | µm | Bearing precision class or drawing |
-| Number of harmonics included | k_max | – | Analysis setting (2) |
-| Damping ratio of the rotor-bearing modes | ζ | – | Assumed (0.03) |
+| Waviness of the races and rollers | A | µm | Bearing supplier (0.1 µm assumed until available) |
+
+Two further values are fixed inside the analysis rather than entered: the number of bearing harmonics, k = 1 and 2, and the damping ratio of the rotor-bearing modes, ζ = 0.03.
 
 ### 5.3 Operating and reporting inputs
 
@@ -353,7 +350,7 @@ Each rotating part has its own pair of tapered roller bearings, bearing A and be
 
 ### 5.4 Calculated, estimated and optional inputs
 
-Most inputs are taken directly from CAD, specifications or catalogs. The imbalance values are specified limits rather than predictions, for the reasons given in Section 2.3. The bearing imperfection amplitudes are specified values: they should be taken from the bearing precision class or the drawing tolerances, and replaced with measured values when inspection data is available. The damping ratio is an assumed typical value.
+Most inputs are taken directly from CAD, specifications or catalogs. The imbalance values are specified limits rather than predictions, for the reasons given in Section 2.3. Bearing waviness is not normally listed in a catalog. Until the supplier provides a value, it is taken as 0.1 µm, the upper end of the range of about 0.01 to 0.1 µm typical for precision bearings, so that the bearing loads err on the high side. The same value is used for the outer race, the inner race and the rollers of both bearings in a pair. The damping ratio is an assumed typical value.
 
 Each imbalance can be supplied in whichever form the specification uses, and the first one given is used. Static imbalance is taken as U_s directly, or from the eccentricity by Equation (@us), or from a balance grade by Equation (@usgrade). Couple imbalance is taken as U_d directly or, if only a static limit exists, from the plane spacing by Equation (@udplane). Only the spin inertia I_zz is needed; the transverse inertias and the tilt of Equation (@ud) are not required once the imbalance is specified this way. Where a datasheet gives the stored angular momentum rather than the spin inertia, I_zz follows from Equation (@izzh) in Section 6. Any required input that is missing is reported by name and the calculation stops, so no value is silently assumed.
 
@@ -385,8 +382,6 @@ $$F_w = U_s\sqrt{\Omega_w^4 + \dot{\Omega}_w^2}, \qquad M_w = U_d\sqrt{\Omega_w^
 
 with Ω̇_w from Equation (@ramp) for the shorter of the two ramps. At constant speed Ω̇_w is zero and these reduce to Equations (@fw) and (@mw).
 
-**Higher imbalance harmonics.** Misalignment, runout and fits can produce imbalance-like loads at whole multiples h of the running speed. When coefficients are available, from a specification or a test, each harmonic h adds a lateral force C_f Ω_w² and a rocking moment C_m Ω_w² at frequency h f_r, in the form of Equation (@masterson). These are added to F_w and M_w. Seen from the stationary shaft, each appears on the two sideways axes as a pair of equal sinusoids, 90° apart, as in Equations (@fxt) and (@fyt).
-
 ### 6.3 Moments at the reference point
 
 These loads act at the part's center of mass, which sits at position r_cm along the shaft. Following Equation (@transfer), they are moved directly to the reference point in a single step:
@@ -413,38 +408,37 @@ The tangential imbalance term is included through Equation (@fwpeak).
 
 ### 6.5 Bearing loads
 
-Each bearing of each pair is modeled separately. The bearing frequencies follow from Equations (@fcage) to (@fball), using the outer-race-rotating forms, with f_r taken as that part's own rotor frequency. The preload gives the roller load and stiffness through Equations (@q0) to (@kroller), and the bearing radial and axial stiffness through Equations (@krad) and (@kax). If the supplier gives a radial stiffness, it is used instead and the roller stiffness is found from Equation (@krad).
+Each bearing of each pair is modeled separately. The bearing frequencies follow from Equations (@fcage) to (@fball), using the outer-race-rotating forms, with f_r taken as that part's own rotor frequency. The preload gives the roller load and stiffness through Equations (@q0) to (@kroller), and the bearing radial and axial stiffness through Equations (@krad) and (@kax).
 
 The rotor sits on both bearings of its pair, so its natural frequencies for lateral and axial motion are:
 
 $$f_{n,lat} = \frac{1}{2\pi}\sqrt{\frac{2K_{rad}}{m}}, \qquad f_{n,ax} = \frac{1}{2\pi}\sqrt{\frac{2K_{ax}}{m}}$$ {#fnpair}
 
-For each bearing and each harmonic k = 1 to k_max, the specified imperfections give the following disturbance lines, with f_c, f_o, f_i and f_b the cage, outer race pass, inner race pass and roller spin frequencies:
+For each bearing and each harmonic k = 1 and 2, the waviness A gives the following disturbance lines, with f_c, f_o, f_i and f_b the cage, outer race pass, inner race pass and roller spin frequencies:
 
 | Source | Direction | Frequency | Blocked force |
 |---|---|---|---|
-| Inner race waviness, q = kZ ± 1 | Lateral | k f_i | Z k_r A_i cos α |
-| Inner race waviness, q = kZ | Axial | k f_i | Z k_r A_i sin α |
-| Outer race waviness, q = kZ + 1 | Lateral | k f_o + f_r | (Z/2) k_r A_o cos α |
-| Outer race waviness, q = kZ − 1 | Lateral | \|k f_o − f_r\| | (Z/2) k_r A_o cos α |
-| Outer race waviness, q = kZ | Axial | k f_o | Z k_r A_o sin α |
-| Roller waviness, q = 2k | Lateral | 2k f_b ± f_c | n_b k_r A_b cos α |
-| Roller waviness, q = 2k | Axial | 2k f_b | 2 n_b k_r A_b sin α |
-| Roller diameter variation | Lateral | f_c | k_r Δ cos α |
+| Inner race waviness, q = kZ ± 1 | Lateral | k f_i | Z k_r A cos α |
+| Inner race waviness, q = kZ | Axial | k f_i | Z k_r A sin α |
+| Outer race waviness, q = kZ + 1 | Lateral | k f_o + f_r | (Z/2) k_r A cos α |
+| Outer race waviness, q = kZ − 1 | Lateral | \|k f_o − f_r\| | (Z/2) k_r A cos α |
+| Outer race waviness, q = kZ | Axial | k f_o | Z k_r A sin α |
+| Roller waviness, q = 2k | Lateral | 2k f_b ± f_c | Z k_r A cos α |
+| Roller waviness, q = 2k | Axial | 2k f_b | 2 Z k_r A sin α |
 
-Here n_b is Z when the waviness of all rollers is assumed in phase (worst case) or √Z when their phases are taken as random. Each blocked force is converted to the force at the shaft with Equation (@transmit), using the lateral or axial natural frequency. Lines from bearing A and bearing B fall at the same frequencies and are added. Within each rotor, all lateral lines are added to give the bearing Fx and Fy, and all axial lines to give Fz:
+The waviness of all Z rollers is taken in phase, which is the worst case. Each blocked force is converted to the force at the shaft with Equation (@transmit), using the lateral or axial natural frequency. Lines from bearing A and bearing B fall at the same frequencies and are added. Within each rotor, all lateral lines are added to give the bearing Fx and Fy, and all axial lines to give Fz:
 
 $$F_{lat,brg} = \sum_{\text{lateral lines}} F_{shaft}, \qquad F_{ax,brg} = \sum_{\text{axial lines}} F_{shaft}$$ {#flat}
 
 $$M_{x,brg} = M_{y,brg} = F_{lat,brg}\,L$$ {#mbrg}
 
-Below the natural frequency the bearing force reaches the shaft as the reaction to the rotor's motion, so it is taken to act at the rotor's center of mass, a distance L from the reference point. The linear model is checked by comparing the largest combined imperfection with the preload deflection δ_0 of Equation (@palmgren), and a warning is given if rollers could unload.
+Below the natural frequency the bearing force reaches the shaft as the reaction to the rotor's motion, so it is taken to act at the rotor's center of mass, a distance L from the reference point. The linear model is checked by comparing the largest combined waviness with the preload deflection δ_0 of Equation (@palmgren), and a warning is given if rollers could unload.
 
 ### 6.6 Motor torque ripple and cogging
 
-When the motor data is available, each motor adds torque lines about its spin axis. For a three-phase motor with p pole pairs and N_s slots, ripple lines fall at 6 n p f_r and cogging lines at n LCM(N_s, 2p) f_r, Equations (@ripple) and (@cog), with amplitudes T_ripple,n and T_cog,n from the datasheet or a test. A slotless motor has no cogging. The stator reaction passes into the structure, so each amplitude is applied as a torque about z, with no reduction for the speed control loop:
+When the motor data is available, each motor adds a twist about its spin axis. Only the peak torque ripple T_ripple and peak cogging torque T_cog from the motor datasheet are needed; their frequencies follow from Equations (@ripple) and (@cog) but are not required for the load values. The stator reaction passes into the structure, so both are applied as a torque about z, added at full value with no reduction for the speed control loop:
 
-$$M_{z,motor} = \sum_n T_{ripple,n} + \sum_n T_{cog,n}$$ {#mzmotor}
+$$M_{z,motor} = T_{ripple} + T_{cog}$$ {#mzmotor}
 
 Until the motor data is entered, this source is reported as not included.
 
@@ -462,7 +456,7 @@ The six components are summed over the arm, both wheels, all bearings, the motor
 
 | Load | Arm and each wheel | Bearings | Motors | Gyroscopic |
 |---|---|---|---|---|
-| Fx, Fy | F_w with harmonics, Equation (@fwpeak) | F_lat,brg, Equation (@flat) | 0 | 0 |
+| Fx, Fy | F_w, Equation (@fwpeak) | F_lat,brg, Equation (@flat) | 0 | 0 |
 | Fz | 0 | F_ax,brg, Equation (@flat) | 0 | 0 |
 | Mx, My | M_w + F_w L, Equation (@mxmy) | F_lat,brg L, Equation (@mbrg) | 0 | Equation (@gyroassy) |
 | Mz | Larger of T_up and T_down, Equations (@tup) and (@tdown), summed with sign | 0, since bearing drag is reacted inside the assembly by the motor | Equation (@mzmotor) | 0 |
@@ -479,7 +473,7 @@ Three decisions frame everything that follows. First, the loads are hard-mounted
 
 All three parts are handled by the same equations and the same code. Nothing in the method is specific to wheels or arms, so it applies equally to any number of rotors on parallel shafts, provided the inputs for each are supplied.
 
-The method is built around the full calculation first, with every input it needs defined in advance, so that values can be entered as they become available. It includes every source of Section 2 that has a deterministic model: static and couple imbalance with their acceleration terms, higher imbalance harmonics, motor reaction torque, the tapered roller bearings, motor torque ripple and cogging, and the gyroscopic moment from motion of the spacecraft. Sources whose data has not yet been entered, such as motor ripple or imbalance harmonics, are reported as not included rather than estimated. Broadband noise is the one source left out entirely, because it has no deterministic model and can only be measured.
+The method is built around the full calculation first, with every input it needs defined in advance, so that values can be entered as they become available. It includes every source of Section 2 that has a deterministic model: static and couple imbalance with their acceleration terms, motor reaction torque, the tapered roller bearings, motor torque ripple and cogging, and the gyroscopic moment from motion of the spacecraft. Sources whose data has not yet been entered, such as motor ripple and cogging, are reported as not included rather than estimated. Broadband noise is the one source left out entirely, because it has no deterministic model and can only be measured.
 
 ### 7.2 Static imbalance from the eccentricity specification
 
@@ -503,9 +497,9 @@ The twist about the shaft was calculated separately for spin-up and spin-down, E
 
 The bearing model has two parts with different levels of confidence. The frequencies are exact. For each part, the catalog geometry gives the cage, outer race pass, inner race pass and rolling element spin frequencies from Equations (@fcage) to (@fball), and these are reported in full because they are what a structural analyst needs to check for resonance.
 
-The amplitudes follow from physics, but they depend on the imperfections specified. An earlier version of the method estimated each bearing harmonic as a fixed fraction of the imbalance force and treated each bearing pair as a single source with four harmonics. That approach was replaced. The current model builds the bearing stiffness from the catalog geometry and the preload, uses the classical waviness selection rule of Equation (@waverule) to find which imperfection orders produce a net force and at which frequency, and passes each blocked force through the rotor-bearing dynamics of Equation (@transmit). Each bearing of a pair is treated separately, with its own imperfection amplitudes, and each source produces its own set of lines at its own frequencies, rather than a single lumped set of four.
+The amplitudes follow from physics, but they depend on the waviness. An earlier version of the method estimated each bearing harmonic as a fixed fraction of the imbalance force and treated each bearing pair as a single source with four harmonics. That approach was replaced. The current model builds the bearing stiffness from the catalog geometry and the preload, uses the classical waviness selection rule of Equation (@waverule) to find which waviness orders produce a net force and at which frequency, and passes each blocked force through the rotor-bearing dynamics of Equation (@transmit). Each bearing of a pair is treated separately, and the outer race, inner race and rollers each produce their own lines at their own frequencies, rather than a single lumped set of four.
 
-This makes the bearing loads traceable: every line can be followed back to a specific imperfection on a specific bearing, and the effect of a tighter tolerance class or a higher preload can be seen directly. Its accuracy rests on the imperfection amplitudes. Precision-class tolerances give a defensible starting value; inspection data on the actual bearings, or supplier vibration data, should replace them when available.
+This makes the bearing loads traceable: every line can be followed back to a specific bearing surface, and the effect of a smaller waviness or a higher preload can be seen directly. Its accuracy rests on the waviness value. The assumed 0.1 µm is a conservative starting point; the supplier's waviness limit, or supplier vibration data, should replace it when available. The bearing forces scale directly with the waviness, so halving it halves them.
 
 ### 7.7 How the method was developed
 
@@ -519,7 +513,7 @@ An independent review of an early version raised several points about how result
 
 ### 7.8 Implementation
 
-The method is implemented in a single MATLAB script. The only part a user edits is the input section, where each rotating part has its own block of clearly named values. Static and couple imbalance can each be entered in whichever form the balance specification uses, and any required value left blank is reported by name before the calculation runs. When the script runs, it calculates every source, sums the loads, runs a set of arithmetic checks, plots the lateral and axial force against speed, and prints the results in four parts followed by the loads at other speeds. The flow is shown in Figure 1.
+The method is implemented in a single MATLAB script. The only part a user edits is the input section, where each rotating part has its own block of clearly named values. Static and couple imbalance can each be entered in whichever form the balance specification uses, and any required value left blank is reported by name before the calculation runs. When the script runs, it calculates every source, sums the loads, runs a set of arithmetic checks, plots the lateral and axial force against speed, and prints the results in five parts followed by the loads at other speeds. The flow is shown in Figure 1.
 
 ![Figure 1. Calculation flow of the analysis method.](flow.png){width=6in}
 
@@ -527,15 +521,15 @@ The method is implemented in a single MATLAB script. The only part a user edits 
 
 The method rests on a small number of assumptions, each chosen either because it is the standard convention for source loads or because it errs toward a larger, safer answer. The parts are treated as rigid and the mount as perfectly stiff, which is the hard-mounted convention. All peaks are added as though they occur together, since the phases between sources are unknown. Fx and Fy are peak values of the same rotating force, reached a quarter turn apart, so the resultant lateral force equals Fx rather than √2 times Fx, and the same is true of Mx and My. Speed changes are taken to occur at a constant rate. Motor ripple and cogging are applied at full amplitude with no reduction for the speed control loop.
 
-The imbalance values are specified limits, not measurements. Where no couple limit is specified, it is taken as the static tolerance in two planes with the residuals opposed, which should be confirmed or replaced by a couple requirement. The bearing loads are only as good as the specified imperfection amplitudes, which come from tolerance classes rather than measurement. The bearing model is linear about the preload and assumes every roller stays loaded. It uses Palmgren's empirical line-contact relation for stiffness, includes only the rotor's lateral and axial modes on its bearings (not its rocking mode), adds the lines of both bearings and all sources in phase, and assumes a typical damping ratio.
+The imbalance values are specified limits, not measurements. Where no couple limit is specified, it is taken as the static tolerance in two planes with the residuals opposed, which should be confirmed or replaced by a couple requirement. The bearing loads are only as good as the waviness value, which is assumed at 0.1 µm until supplier data is available. The bearing model is linear about the preload and assumes every roller stays loaded. It uses Palmgren's empirical line-contact relation for stiffness, includes only the rotor's lateral and axial modes on its bearings (not its rocking mode), adds the lines of both bearings and all sources in phase, and assumes a typical damping ratio.
 
-Some effects are outside the scope of the method. It does not include structural resonance, which can raise the loads well above the hard-mounted values near a natural frequency. It does not include broadband noise, which can only be measured, flexibility of the rotors themselves, small radial magnetic forces inside the motors, or localized bearing defects such as spalls, which belong to failure analysis rather than to the induced loads of a healthy bearing. Motor ripple, cogging and higher imbalance harmonics are included in the method but contribute only once their data is entered.
+Some effects are outside the scope of the method. It does not include structural resonance, which can raise the loads well above the hard-mounted values near a natural frequency. It does not include broadband noise, which can only be measured, flexibility of the rotors themselves, small radial magnetic forces inside the motors, or localized bearing defects such as spalls, which belong to failure analysis rather than to the induced loads of a healthy bearing. Imbalance harmonics above once per revolution and bearing varying compliance are not included; the latter is small because the bearings are preloaded and the sideways loads are small compared with the preload. Motor ripple and cogging are included in the method but contribute only once their data is entered.
 
 ## 9. Next Steps and Conclusion
 
-The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. A couple imbalance requirement will be defined or confirmed with the rotor designers, and the bearing imperfection amplitudes with inspection data or supplier vibration data. The motor pole and slot counts and ripple and cogging amplitudes will be entered from the motor datasheets, and the spacecraft angular rates from the attitude profile. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
+The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. A couple imbalance requirement will be defined or confirmed with the rotor designers, and the assumed bearing waviness replaced with the supplier's value. The motor ripple and cogging torques will be entered from the motor datasheets, and the spacecraft angular rates from the attitude profile. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
 
-Induced vibration from rotating machinery comes down to a short list of physical effects. A rotor whose center of mass is off its axis pushes sideways. A rotor whose principal axis is tilted rocks its shaft. A rotor that changes speed twists its mount. The bearings add small disturbances at frequencies set by their geometry, with sizes set by their stiffness, preload and imperfections. For our assembly, each of these was estimated from design data alone, in a form that is conservative, can be checked by hand, and can be refined one input at a time as better data becomes available.
+Induced vibration from rotating machinery comes down to a short list of physical effects. A rotor whose center of mass is off its axis pushes sideways. A rotor whose principal axis is tilted rocks its shaft. A rotor that changes speed twists its mount. The bearings add small disturbances at frequencies set by their geometry, with sizes set by their stiffness, preload and waviness. For our assembly, each of these was estimated from design data alone, in a form that is conservative, can be checked by hand, and can be refined one input at a time as better data becomes available.
 
 ## References
 
