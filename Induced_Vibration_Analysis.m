@@ -3,45 +3,26 @@
 %  Forces and moments induced by two momentum wheels, one rotating arm,
 %  and their bearings
 %
-%  Sources:
-%    0. SPEED: speed [rad/s] = RPM x 2*pi / 60.  Izz from CAD, or Izz = H / speed
-%       if a datasheet gives the stored momentum H instead (optional input).
-%
-%    1. IMBALANCE (each rotor), once per revolution (1x RPM)
-%       - Static imbalance Us  : center of mass off the spin axis -> lateral force
-%                                F = Us x speed^2
-%         Us from (first one filled in): Us directly, mass x eccentricity,
-%         or ISO 21940 balance grade G (Us = mass x G / speed)
-%       - Couple imbalance Ud  : principal axis tilted (often called dynamic
-%                                imbalance)                       -> rocking moment
-%                                M = Ud x speed^2
-%         Ud from (first one filled in): Ud directly, or the static tolerance
-%         applied in each of two balancing planes b apart, worst case opposed:
-%         Ud = (Us / 2) x b
-%
-%    2. BEARINGS (each rotor's back-to-back tapered roller bearing pair,
-%       bearing A and bearing B modelled separately)
-%       Physics-based model built from geometry, stiffness, preload and
-%       specified geometric imperfections:
-%       - Preload -> load per roller Q0 = preload / (Z sin(angle))
-%       - Palmgren line contact -> roller stiffness k = (10/9) Q0 / deflection
-%       - Bearing stiffness: radial (Z/2) k cos^2(angle), axial Z k sin^2(angle)
-%       - Imperfections (outer race, inner race and roller waviness, roller
-%         size variation) push the rollers in and out. Summed over all
-%         rollers, only some waviness orders q give a net force:
-%           lateral: q = kZ +/- 1      axial: q = kZ      (races)
-%           q = 2k (even orders)                          (rollers)
-%         Each one gives its own frequency line (k = 1 .. bearing_harmonic_count).
-%       - Force if the rotor could not move ("blocked") = stiffness x imperfection.
-%         The rotor sits on its bearings, so the force that reaches the
-%         stationary shaft is the blocked force x transmissibility:
-%           T = r^2 / sqrt((1 - r^2)^2 + (2 zeta r)^2),  r = line freq / rotor-bearing natural freq
-%
-%    3. TWIST (each rotor)
-%       Motor reaction torque on the shaft during spin-up / spin-down:
-%       Mz = Izz x speed / ramp time
-%       Spin-up and spin-down are printed separately; the tables use the
-%       larger one (shorter ramp = bigger twist).
+%  Sources (each one has its equations here and its inputs in SECTION 1):
+%    1. STATIC IMBALANCE   Us -> rotating lateral force  F = Us x sqrt(speed^4 + accel^2)
+%                          (radial Us x speed^2, plus tangential Us x accel during ramps)
+%    2. COUPLE IMBALANCE   Ud -> rotating rocking moment M = Ud x sqrt(speed^4 + accel^2)
+%                          (often called dynamic imbalance)
+%       Us from: Us directly, mass x eccentricity, or ISO 21940 grade (Us = mass x G / speed)
+%       Ud from: Ud directly, or static tolerance in two planes b apart, opposed: Ud = (Us/2) x b
+%    3. HIGHER IMBALANCE HARMONICS (optional) at h x RPM: F = Cf x speed^2, M = Cm x speed^2
+%    4. MOTOR REACTION TORQUE during spin-up / spin-down: Mz = -Izz x accel
+%    5. TAPERED ROLLER BEARINGS (bearing A and B of each rotor), from geometry, preload,
+%       stiffness and specified imperfections:
+%       - Q0 = preload / (Z sin(angle)); Palmgren line contact -> roller stiffness k
+%       - bearing stiffness: radial (Z/2) k cos^2(angle), axial Z k sin^2(angle)
+%       - waviness orders q = kZ +/- 1 give lateral force, q = kZ axial force (races);
+%         even orders q = 2k for rollers; roller size variation at the cage frequency
+%       - force at the shaft = blocked force x transmissibility of the rotor on its bearings
+%    6. MOTOR TORQUE RIPPLE AND COGGING (when motor data is entered):
+%       Mz lines at 6 n p x RPM (ripple) and n LCM(slots, 2p) x RPM (cogging)
+%    7. GYROSCOPIC MOMENT from motion of the supporting spacecraft:
+%       M = -(spacecraft rate) x (total stored momentum H), H = sum(direction x Izz x speed)
 %
 %  Assumptions (state these in your report):
 %    - Hard-mounted: loads are calculated as if bolted to a rigid base.
@@ -56,7 +37,8 @@
 %    - Bearing model is linear about the preload (rollers stay loaded) and uses
 %      the rotor's lateral and axial modes only (no rocking mode).
 %    - Imbalance values are the SPECIFIED limits (balance spec), not measurements.
-%    - Not included: structural resonance, motor torque ripple, broadband noise.
+%    - Not included: structural resonance, broadband noise, rotor flexibility,
+%      localized bearing defects, motor radial magnetic pull, windage.
 %
 %  Directions:
 %    lateral = sideways (perpendicular to the shaft)
@@ -65,11 +47,12 @@
 %  How to use:
 %    1. Edit SECTION 1 only (your numbers).
 %    2. Run the script.
-%    3. The Command Window prints Fx, Fy, Fz, Mx, My, Mz in four parts:
-%         PART 1  ARM               (imbalance only)
-%         PART 2  MOMENTUM WHEELS   (imbalance only)
-%         PART 3  BEARINGS          (harmonics only)
-%         PART 4  ALL TOGETHER      <- the final answer, at the very bottom
+%    3. The Command Window prints Fx, Fy, Fz, Mx, My, Mz in five parts:
+%         PART 1  ARM               (imbalance + ramp twist)
+%         PART 2  MOMENTUM WHEELS   (imbalance + ramp twist)
+%         PART 3  BEARINGS
+%         PART 4  MOTORS (ripple, cogging) AND GYROSCOPIC
+%         PART 5  ALL TOGETHER      <- the final answer, at the very bottom
 %       The final answer is also saved as final_Fx_N ... final_Mz_Nm.
 %    4. ARITHMETIC CHECKS print first: every line should say PASS.
 %       (They prove the code does its math right, not that the inputs
@@ -93,6 +76,8 @@ reference_position_m = 0;      % [m] point along the shaft where total moments a
 bearing_harmonic_count = 2;    % [-] how many harmonics (k = 1, 2, ...) of each bearing disturbance to include
 bearing_damping_ratio  = 0.03; % [-] damping of the rotor-on-bearing modes (0.02 - 0.05 is typical)
 roller_waviness_sum    = 'worst';  % 'worst' = all rollers' waviness in phase (x Z), 'random' = random phases (x sqrt(Z))
+spacecraft_rate_rad_s  = [0 0 0];  % [rad/s] angular rate of the supporting spacecraft about x, y, z
+                                  %         (gyroscopic moment). [0 0 0] = fixed base
 report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wheels follow at the same
                                   %       ratio as the max speeds). Use [] for none.
 
@@ -111,6 +96,14 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
 %   Leave the ways you don't use as [].
 %
 % SPIN INERTIA: enter Izz (from CAD), OR the stored momentum H (Izz = H / speed).
+%
+% OPTIONAL SOURCES (leave [] until the data exists; the output says "not included"):
+%   *_imbalance_harmonics : higher imbalance harmonics, one row each [h, Cf, Cm]
+%                           h = harmonic number (2, 3, ...), Cf [kg*m], Cm [kg*m^2]
+%                           -> F = Cf x speed^2 and M = Cm x speed^2 at h x RPM
+%   *_motor_pole_pairs, *_motor_slots : from the motor datasheet (slots = 0 if slotless)
+%   *_motor_ripple_Nm  : torque ripple amplitudes (peak) for harmonics n = 1, 2, ...
+%   *_motor_cogging_Nm : cogging torque amplitudes (peak) for harmonics n = 1, 2, ...
 %
 % Anything required that is left [] stops the script with a list of what to fill in.
 % ------------------------------------------------------------------------
@@ -143,6 +136,11 @@ wheel1_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance betw
 wheel1_max_speed_rpm          = 515;      % [RPM]
 wheel1_spin_direction         = -1;       % +1 or -1
 wheel1_position_m             = -0.200;   % [m]      center of mass position along the shaft
+wheel1_imbalance_harmonics    = [];       % OPTIONAL rows [h, Cf (kg*m), Cm (kg*m^2)]
+wheel1_motor_pole_pairs       = [];       % [-]      motor pole pairs p          (motor datasheet)
+wheel1_motor_slots            = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
+wheel1_motor_ripple_Nm        = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
+wheel1_motor_cogging_Nm       = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
 
 wheel1_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel1_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -171,6 +169,11 @@ arm_plane_spacing_m           = 0.040;    % [m]      COUPLE way 2: distance betw
 arm_max_speed_rpm             = 100;      % [RPM]
 arm_spin_direction            = +1;       % +1 or -1
 arm_position_m                = 0.000;    % [m]      center of mass position along the shaft
+arm_imbalance_harmonics       = [];       % OPTIONAL rows [h, Cf (kg*m), Cm (kg*m^2)]
+arm_motor_pole_pairs          = [];       % [-]      motor pole pairs p          (motor datasheet)
+arm_motor_slots               = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
+arm_motor_ripple_Nm           = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
+arm_motor_cogging_Nm          = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
 
 arm_bearing_rollers           = 20;   % [-]   number of rollers      (bearing catalog)
 arm_bearing_roller_dia_mm     = 8;    % [mm]  mean roller diameter   (bearing catalog)
@@ -199,6 +202,11 @@ wheel2_plane_spacing_m        = 0.030;    % [m]      COUPLE way 2: distance betw
 wheel2_max_speed_rpm          = 515;      % [RPM]
 wheel2_spin_direction         = -1;       % +1 or -1
 wheel2_position_m             = 0.200;    % [m]      center of mass position along the shaft
+wheel2_imbalance_harmonics    = [];       % OPTIONAL rows [h, Cf (kg*m), Cm (kg*m^2)]
+wheel2_motor_pole_pairs       = [];       % [-]      motor pole pairs p          (motor datasheet)
+wheel2_motor_slots            = [];       % [-]      stator slots (0 = slotless) (motor datasheet)
+wheel2_motor_ripple_Nm        = [];       % [N*m]    ripple amplitudes, n = 1, 2, ...  e.g. [0.002 0.0005]
+wheel2_motor_cogging_Nm       = [];       % [N*m]    cogging amplitudes, n = 1, 2, ...
 
 wheel2_bearing_rollers        = 15;   % [-]   number of rollers      (bearing catalog)
 wheel2_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
@@ -230,7 +238,7 @@ required_each  = {'mass_kg', 'max_speed_rpm', 'spin_direction', 'position_m', ..
                   'bearing_roller_length_mm', 'bearing_preload_N', 'bearing_outer_waviness_um', ...
                   'bearing_inner_waviness_um', 'bearing_roller_waviness_um', 'bearing_roller_size_var_um'};
 required_general = {'spin_up_time_s', 'spin_down_time_s', 'reference_position_m', ...
-                    'bearing_harmonic_count', 'bearing_damping_ratio'};
+                    'bearing_harmonic_count', 'bearing_damping_ratio', 'spacecraft_rate_rad_s'};
 missing_inputs = {};
 for i = 1:numel(required_general)
     if isempty(eval(required_general{i}))
@@ -254,6 +262,19 @@ for p = 1:numel(rotor_prefixes)
     if isempty(eval([pre, '_couple_imbalance_kgm2'])) && isempty(eval([pre, '_plane_spacing_m']))
         missing_inputs{end+1} = [pre, ' couple imbalance: fill ONE of _couple_imbalance_kgm2, _plane_spacing_m'];
     end
+    if ~isempty(eval([pre, '_motor_ripple_Nm'])) && isempty(eval([pre, '_motor_pole_pairs']))
+        missing_inputs{end+1} = [pre, '_motor_pole_pairs  (needed for the ripple you entered)'];
+    end
+    if ~isempty(eval([pre, '_motor_cogging_Nm'])) && (isempty(eval([pre, '_motor_pole_pairs'])) || isempty(eval([pre, '_motor_slots'])))
+        missing_inputs{end+1} = [pre, '_motor_pole_pairs and _motor_slots  (needed for the cogging you entered)'];
+    end
+    harmonics_input = eval([pre, '_imbalance_harmonics']);
+    if ~isempty(harmonics_input) && size(harmonics_input, 2) ~= 3
+        missing_inputs{end+1} = [pre, '_imbalance_harmonics must have 3 columns: [h, Cf, Cm]'];
+    end
+end
+if numel(spacecraft_rate_rad_s) ~= 3
+    missing_inputs{end+1} = 'spacecraft_rate_rad_s must have 3 values [x y z]';
 end
 if ~isempty(missing_inputs)
     fprintf('\n*** MISSING INPUTS - fill these in SECTION 1, then run again ***\n');
@@ -284,6 +305,11 @@ eccentricity_entered      = {wheel1_eccentricity_um,        arm_eccentricity_um,
 balance_grade_entered     = {wheel1_balance_grade_mm_s,     arm_balance_grade_mm_s,     wheel2_balance_grade_mm_s};
 couple_imbalance_entered  = {wheel1_couple_imbalance_kgm2,  arm_couple_imbalance_kgm2,  wheel2_couple_imbalance_kgm2};
 plane_spacing_entered     = {wheel1_plane_spacing_m,        arm_plane_spacing_m,        wheel2_plane_spacing_m};
+harmonics_entered         = {wheel1_imbalance_harmonics,    arm_imbalance_harmonics,    wheel2_imbalance_harmonics};
+motor_pole_pairs_entered  = {wheel1_motor_pole_pairs,       arm_motor_pole_pairs,       wheel2_motor_pole_pairs};
+motor_slots_entered       = {wheel1_motor_slots,            arm_motor_slots,            wheel2_motor_slots};
+motor_ripple_entered      = {wheel1_motor_ripple_Nm,        arm_motor_ripple_Nm,        wheel2_motor_ripple_Nm};
+motor_cogging_entered     = {wheel1_motor_cogging_Nm,       arm_motor_cogging_Nm,       wheel2_motor_cogging_Nm};
 
 bearing_rollers       = [wheel1_bearing_rollers,       arm_bearing_rollers,       wheel2_bearing_rollers];
 bearing_roller_dia_mm = [wheel1_bearing_roller_dia_mm, arm_bearing_roller_dia_mm, wheel2_bearing_roller_dia_mm];
@@ -307,7 +333,8 @@ roller_size_var_m = 1e-6 * [wheel1_bearing_roller_size_var_um; arm_bearing_rolle
 speed_rad_s      = max_speed_rpm * 2 * pi / 60;     % [rad/s]
 speed_hz         = max_speed_rpm / 60;              % [Hz]  revolutions per second (1x RPM)
 lever_arm_m      = abs(position_m - reference_position_m);   % [m] distance to the reference point
-ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
+ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);   % shorter ramp = worst case (used in tables)
+spin_accel_rad_s2 = speed_rad_s / ramp_time_s;      % [rad/s^2] angular acceleration of the worst ramp
 
 % Spin inertia: Izz from CAD, or from stored momentum H:  Izz = H / speed
 Izz_kgm2       = zeros(1, number_of_rotors);
@@ -320,7 +347,7 @@ for r = 1:number_of_rotors
         Izz_kgm2(r) = momentum_entered{r} / speed_rad_s(r);
         inertia_source{r} = 'from H';
     end
-end   % shorter ramp = worst case (used in tables)
+end
 
 % Twist on the mount (reaction torque = -Izz x acceleration), spin-up and spin-down separately.
 % Sign shows direction: spin-up and spin-down twist the mount opposite ways.
@@ -329,7 +356,7 @@ twist_spin_down_Nm =  spin_direction .* Izz_kgm2 .* speed_rad_s / max(spin_down_
 
 
 %% ========================================================================
-%  SECTION 4: STATIC AND DYNAMIC IMBALANCE  (1x RPM)
+%  SECTION 4: IMBALANCE, HIGHER HARMONICS, MOTOR RIPPLE/COGGING, GYROSCOPIC
 %  ========================================================================
 
 % Static imbalance Us and couple imbalance Ud: the first way filled in is used
@@ -357,11 +384,63 @@ for r = 1:number_of_rotors
     end
 end
 
-% Static imbalance: center of mass off the spin axis -> lateral force   F = Us x speed^2
-static_imbalance_force_N = static_imbalance_kgm .* speed_rad_s .^ 2;
+% ---- 4A. Static and couple imbalance (1x RPM) ----
+% At constant speed: radial force Us x speed^2 and moment Ud x speed^2.
+% While the speed changes there is also a tangential part Us x accel (Ud x accel)
+% at right angles, so the peak at the top of a ramp is Us x sqrt(speed^4 + accel^2).
+static_force_steady_N       = static_imbalance_kgm   .* speed_rad_s .^ 2;
+dynamic_moment_steady_Nm    = dynamic_imbalance_kgm2 .* speed_rad_s .^ 2;
+static_imbalance_force_N    = static_imbalance_kgm   .* sqrt(speed_rad_s .^ 4 + spin_accel_rad_s2 .^ 2);
+dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* sqrt(speed_rad_s .^ 4 + spin_accel_rad_s2 .^ 2);
 
-% Couple imbalance: rotor tilted on the spin axis -> rocking moment     M = Ud x speed^2
-dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* speed_rad_s .^ 2;
+% ---- 4B. Higher imbalance harmonics (optional) ----
+% Each row [h, Cf, Cm]: lateral force Cf x speed^2 and moment Cm x speed^2 at h x RPM
+harmonic_force_N  = zeros(1, number_of_rotors);
+harmonic_moment_Nm = zeros(1, number_of_rotors);
+for r = 1:number_of_rotors
+    if ~isempty(harmonics_entered{r})
+        harmonic_force_N(r)   = sum(harmonics_entered{r}(:, 2)) * speed_rad_s(r) ^ 2;
+        harmonic_moment_Nm(r) = sum(harmonics_entered{r}(:, 3)) * speed_rad_s(r) ^ 2;
+    end
+end
+
+% ---- 4C. Motor torque ripple and cogging (when motor data is entered) ----
+% Ripple  : three-phase commutation, lines at 6 n p x fr   (n = 1, 2, ...)
+% Cogging : lines at n LCM(slots, 2p) x fr                 (none if slotless)
+% The stator reaction passes straight into the structure, so each line's amplitude is a
+% torque Mz on the mount (no speed-loop attenuation assumed: worst case).
+motor_line_rotor = [];  motor_line_source = {};  motor_line_n = [];  motor_line_freq_hz = [];  motor_line_Nm = [];
+for r = 1:number_of_rotors
+    if ~isempty(motor_pole_pairs_entered{r})
+        p_pairs = motor_pole_pairs_entered{r};
+        for n = 1:numel(motor_ripple_entered{r})
+            motor_line_rotor(end+1) = r;  motor_line_source{end+1} = 'Torque ripple';  motor_line_n(end+1) = n;
+            motor_line_freq_hz(end+1) = 6 * n * p_pairs * speed_hz(r);
+            motor_line_Nm(end+1) = motor_ripple_entered{r}(n);
+        end
+        if ~isempty(motor_slots_entered{r}) && motor_slots_entered{r} > 0
+            cogging_order = lcm(round(motor_slots_entered{r}), round(2 * p_pairs));   % cogging periods per revolution
+            for n = 1:numel(motor_cogging_entered{r})
+                motor_line_rotor(end+1) = r;  motor_line_source{end+1} = 'Cogging';  motor_line_n(end+1) = n;
+                motor_line_freq_hz(end+1) = n * cogging_order * speed_hz(r);
+                motor_line_Nm(end+1) = motor_cogging_entered{r}(n);
+            end
+        end
+    end
+end
+motor_torque_Nm = zeros(1, number_of_rotors);
+for r = 1:number_of_rotors
+    motor_torque_Nm(r) = sum(motor_line_Nm(motor_line_rotor == r));      % all lines added (worst case)
+end
+
+% ---- 4D. Gyroscopic moment from motion of the supporting spacecraft ----
+% Stored momentum of each rotor along z (sign = spin direction), moment M = -(rate x H)
+momentum_Nms = spin_direction .* Izz_kgm2 .* speed_rad_s;
+spacecraft_rate = reshape(spacecraft_rate_rad_s, 1, 3);
+gyro_moment_Nm = zeros(3, number_of_rotors);                 % rows = [Mx; My; Mz]
+for r = 1:number_of_rotors
+    gyro_moment_Nm(:, r) = -cross(spacecraft_rate, [0 0 momentum_Nms(r)])';
+end
 
 
 %% ========================================================================
@@ -502,7 +581,8 @@ end
 %  Fz     : force along the shaft (only the tapered bearings make this).
 %  Mx, My : tipping moment at the reference point. It also rotates, so
 %           peak Mx = peak My. = own moment + sideways force x distance.
-%  Mz     : twist about the shaft (motor reaction, only during ramps).
+%  Mz     : twist about the shaft (motor reaction during ramps, plus motor ripple/cogging).
+%  Gyroscopic moments are not rotating: they are kept with their signs and added at the end.
 %
 %  Each source is stored as 6 numbers: [Fx; Fy; Fz; Mx; My; Mz]
 %  Worst case = every peak lines up at the same moment (safe design value).
@@ -511,16 +591,27 @@ end
 % ---- Imbalance of each rotor (wheels and arm) ----
 imbalance_loads = zeros(6, number_of_rotors);          % columns = Wheel 1, Arm, Wheel 2
 for r = 1:number_of_rotors
-    imbalance_moment = dynamic_imbalance_moment_Nm(r) + lever_arm_m(r) * static_imbalance_force_N(r);
-    imbalance_loads(:, r) = [static_imbalance_force_N(r);     % Fx
-                             static_imbalance_force_N(r);     % Fy
+    imbalance_force  = static_imbalance_force_N(r) + harmonic_force_N(r);
+    imbalance_moment = dynamic_imbalance_moment_Nm(r) + harmonic_moment_Nm(r) + lever_arm_m(r) * imbalance_force;
+    imbalance_loads(:, r) = [imbalance_force;                 % Fx
+                             imbalance_force;                 % Fy
                              0;                               % Fz (imbalance does not push along the shaft)
                              imbalance_moment;                % Mx
                              imbalance_moment;                % My
                              spin_direction(r) * Izz_kgm2(r) * speed_rad_s(r) / ramp_time_s];  % Mz (signed twist)
 end
 
-% ---- Bearings of each rotor (all 4 harmonics lined up) ----
+% Steady values (constant speed, no ramp) for the plots and the loads at other speeds
+steady_force_N  = static_force_steady_N + harmonic_force_N;
+steady_moment_Nm = dynamic_moment_steady_Nm + harmonic_moment_Nm + lever_arm_m .* steady_force_N;
+
+% ---- Motor ripple / cogging and gyroscopic moment of each rotor ----
+motor_loads = zeros(6, number_of_rotors);
+motor_loads(6, :) = motor_torque_Nm;
+gyro_loads = zeros(6, number_of_rotors);
+gyro_loads(4:6, :) = gyro_moment_Nm;
+
+% ---- Bearings of each rotor (every bearing line, bearing A + B) ----
 bearing_loads = zeros(6, number_of_rotors);            % columns = Wheel 1 bearings, Arm bearings, Wheel 2 bearings
 for r = 1:number_of_rotors
     bearing_moment = lever_arm_m(r) * bearing_lateral_N(r);
@@ -539,8 +630,11 @@ arm_loads                     = imbalance_loads(:, arm_index);
 wheel_loads   = imbalance_loads(:, wheel_columns);
 wheels_total  = sum(wheel_loads, 2);                   % Mz adds with sign (both wheels spin the same way)
 bearings_total = sum(bearing_loads, 2);
+motors_total  = sum(motor_loads, 2);
+gyro_total    = abs(sum(gyro_loads, 2));               % net gyroscopic moment (signed sum, then size)
 all_total     = arm_loads + wheels_total + bearings_total;
-all_total(6)  = abs(all_total(6));                     % net twist (wheels cancel the arm)
+all_total(6)  = abs(all_total(6)) + motors_total(6);   % net twist (wheels cancel the arm) + motor ripple/cogging
+all_total(4:5) = all_total(4:5) + gyro_total(4:5);     % gyroscopic moment added at full value
 
 % Show twist as a size (positive) everywhere except where noted
 arm_loads(6)     = abs(arm_loads(6));
@@ -552,6 +646,8 @@ final_arm_loads      = arm_loads';
 final_wheel_1_loads  = wheel_loads(:, 1)';
 final_wheel_2_loads  = wheel_loads(:, 2)';
 final_bearing_loads  = bearings_total';
+final_motor_loads    = motors_total';
+final_gyro_loads     = gyro_total';
 final_Fx_N  = all_total(1);
 final_Fy_N  = all_total(2);
 final_Fz_N  = all_total(3);
@@ -579,9 +675,9 @@ hand_value = 1 * 0.001 * (2 * pi * 60 / 60) ^ 2;
 check_names{end+1}  = '1. Textbook case: 1 kg, 1 mm, 60 RPM gives 0.0394784 N';
 check_passed(end+1) = abs(hand_value - 0.0394784176) <= 1e-9;
 
-% 2. Static force by hand, using speed in Hz:  F = Us x (2*pi*f)^2
-hand_value = static_imbalance_kgm .* (2 * pi * speed_hz) .^ 2;
-check_names{end+1}  = '2. Static imbalance force   F = Us x speed^2';
+% 2. Static force by hand, using speed in Hz:  F = Us x sqrt((2*pi*f)^4 + accel^2)
+hand_value = static_imbalance_kgm .* sqrt((2 * pi * speed_hz) .^ 4 + (2 * pi * speed_hz / ramp_time_s) .^ 2);
+check_names{end+1}  = '2. Static imbalance force   F = Us x sqrt(speed^4 + accel^2)';
 check_passed(end+1) = max(abs(hand_value - static_imbalance_force_N)) <= check_tol * max(abs(hand_value));
 
 % 3. Us recomputed from whichever way it was given
@@ -599,8 +695,8 @@ check_names{end+1}  = '3. Us = entered, or mass x e, or mass x G / speed';
 check_passed(end+1) = max(abs(hand_value - static_imbalance_kgm)) <= check_tol * max([abs(hand_value), eps]);
 
 % 4. Dynamic moment by hand:  M = Ud x (2*pi*f)^2
-hand_value = dynamic_imbalance_kgm2 .* (2 * pi * speed_hz) .^ 2;
-check_names{end+1}  = '4. Couple imbalance moment M = Ud x speed^2';
+hand_value = dynamic_imbalance_kgm2 .* sqrt((2 * pi * speed_hz) .^ 4 + (2 * pi * speed_hz / ramp_time_s) .^ 2);
+check_names{end+1}  = '4. Couple imbalance moment M = Ud x sqrt(speed^4 + accel^2)';
 check_passed(end+1) = max(abs(hand_value - dynamic_imbalance_moment_Nm)) <= check_tol * max([abs(hand_value), eps]);
 
 % 5. Ud recomputed: entered, or the static tolerance in two planes b apart, opposed
@@ -638,8 +734,9 @@ check_names{end+1}  = '8. Ramp twist Mz = Izz x speed / ramp time';
 check_passed(end+1) = max(abs(hand_value - abs(imbalance_loads(6, :)))) <= check_tol * max(hand_value);
 
 % 9. Tipping moment = dynamic imbalance + sideways force x distance
-hand_value = dynamic_imbalance_moment_Nm + static_imbalance_force_N .* abs(position_m - reference_position_m);
-check_names{end+1}  = '9. Tipping moment = couple + force x distance';
+hand_value = dynamic_imbalance_moment_Nm + harmonic_moment_Nm + ...
+             (static_imbalance_force_N + harmonic_force_N) .* abs(position_m - reference_position_m);
+check_names{end+1}  = '9. Tipping moment = couple + harmonics + force x distance';
 check_passed(end+1) = max(abs(hand_value - imbalance_loads(4, :))) <= check_tol * max([hand_value, eps]);
 
 % 10. Rotating loads: peak Fx = peak Fy and peak Mx = peak My, everywhere
@@ -649,8 +746,9 @@ check_passed(end+1) = isequal(imbalance_loads(1, :), imbalance_loads(2, :)) && i
 
 % 11. TOTAL = arm + wheel 1 + wheel 2 + all bearings  (Mz: net of the signed twists)
 hand_total    = sum(imbalance_loads, 2) + sum(bearing_loads, 2);
-hand_total(6) = abs(hand_total(6));
-check_names{end+1}  = '11. TOTAL = arm + wheels + bearings';
+hand_total(6) = abs(hand_total(6)) + sum(motor_torque_Nm);
+hand_total(4:5) = hand_total(4:5) + abs(sum(gyro_moment_Nm(1:2, :), 2));
+check_names{end+1}  = '11. TOTAL = arm + wheels + bearings + motors + gyroscopic';
 check_passed(end+1) = max(abs(hand_total - all_total)) <= check_tol * max(abs(hand_total));
 
 % 12. Waviness selection rule: summed over Z rollers, order kZ +/- 1 gives Z/2 (lateral),
@@ -679,6 +777,38 @@ end
 check_names{end+1}  = '13. Bearing lateral total = sum of all bearing lines';
 check_passed(end+1) = max(abs(hand_lateral - bearing_lateral_N)) <= check_tol * max([hand_lateral, eps]);
 
+% 14. Gyroscopic moment of the whole assembly = -(rate x total momentum), written out by hand
+total_H = sum(spin_direction .* Izz_kgm2 .* (2 * pi * max_speed_rpm / 60));
+w = reshape(spacecraft_rate_rad_s, 1, 3);
+hand_value = [-w(2) * total_H; w(1) * total_H; 0];          % -(w x [0 0 H]) expanded
+check_names{end+1}  = '14. Gyroscopic moment = -(spacecraft rate x total momentum)';
+check_passed(end+1) = max(abs(hand_value - sum(gyro_moment_Nm, 2))) <= check_tol * max([abs(hand_value); 1e-12]);
+
+% 15. Motor lines: ripple at 6 n p fr, cogging at n LCM(slots, 2p) fr, Mz = sum of amplitudes
+motor_error = 0;
+for i = 1:numel(motor_line_n)
+    r = motor_line_rotor(i);
+    if strcmp(motor_line_source{i}, 'Torque ripple')
+        hand_value = 6 * motor_line_n(i) * motor_pole_pairs_entered{r} * max_speed_rpm(r) / 60;
+    else
+        a = round(motor_slots_entered{r});  b = round(2 * motor_pole_pairs_entered{r});
+        hand_value = motor_line_n(i) * (a * b / gcd(a, b)) * max_speed_rpm(r) / 60;
+    end
+    motor_error = max(motor_error, abs(hand_value - motor_line_freq_hz(i)) / hand_value);
+end
+for r = 1:number_of_rotors
+    hand_value = sum([motor_ripple_entered{r}(:); 0]);
+    if ~isempty(motor_slots_entered{r}) && motor_slots_entered{r} > 0
+        hand_value = hand_value + sum([motor_cogging_entered{r}(:); 0]);
+    end
+    if isempty(motor_pole_pairs_entered{r})
+        hand_value = 0;
+    end
+    motor_error = max(motor_error, abs(hand_value - motor_torque_Nm(r)));
+end
+check_names{end+1}  = '15. Motor ripple/cogging frequencies and torque';
+check_passed(end+1) = motor_error <= 1e-9;
+
 number_of_checks = numel(check_passed);
 all_checks_ok    = all(check_passed);
 
@@ -687,7 +817,7 @@ all_checks_ok    = all(check_passed);
 %  SECTION 7: PLOTS
 %  ------------------------------------------------------------------------
 %  Plot 1: sideways force (Fx = Fy) vs RPM    Plot 2: axial force (Fz) vs RPM
-%  Imbalance loads grow with speed squared. Bearing loads are recalculated at
+%  Curves are at constant speed (no ramp). Imbalance loads grow with speed squared. Bearing loads are recalculated at
 %  every speed (their frequencies move against the rotor-bearing resonance).
 %  The wheels follow the arm, so the x-axis is arm speed.
 %  ========================================================================
@@ -718,8 +848,13 @@ if make_plots
         fprintf('Drawing plot %d...\n', n);
         try
             row = plot_row(n);
-            curve_values = [arm_loads(row) * curve_shape, wheel_loads(row, 1) * curve_shape, ...
-                            wheel_loads(row, 2) * curve_shape, bearing_curve(:, n)];
+            if row == 1
+                steady_row = steady_force_N;                 % imbalance lateral force, constant speed
+            else
+                steady_row = zeros(1, number_of_rotors);     % imbalance gives no axial force
+            end
+            curve_values = [steady_row(arm_index) * curve_shape, steady_row(1) * curve_shape, ...
+                            steady_row(3) * curve_shape, bearing_curve(:, n)];
             curve_values = [curve_values, sum(curve_values, 2)];      % last column = TOTAL
             figure(n);
             clf;
@@ -738,8 +873,9 @@ if make_plots
                 plot(arm_axis_rpm, curve_values(:, c), curve_lines{c}, ...
                      'Color', curve_colors(c, :), 'LineWidth', line_width);
             end
-            plot(max_speed_rpm(arm_index), all_total(row), 'ko', 'MarkerFaceColor', 'k');
-            text(max_speed_rpm(arm_index), all_total(row), sprintf('%.3g N at max speed   ', all_total(row)), ...
+            [~, max_index] = min(abs(speed_fraction - 1));
+            plot(max_speed_rpm(arm_index), curve_values(max_index, end), 'ko', 'MarkerFaceColor', 'k');
+            text(max_speed_rpm(arm_index), curve_values(max_index, end), sprintf('%.3g N at max speed (steady)   ', curve_values(max_index, end)), ...
                  'HorizontalAlignment', 'right');
             xlabel(x_label_text);
             ylabel(plot_ylabels{n});
@@ -769,7 +905,7 @@ end
 %  ========================================================================
 
 row_labels = {'Fx  [N]   sideways', 'Fy  [N]   sideways', 'Fz  [N]   along shaft', ...
-              'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist (worst ramp)'};
+              'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist'};
 part_line  = repmat('=', 1, 90);
 
 % ---- Arithmetic check results (from SECTION 6B) ----
@@ -798,17 +934,20 @@ end
 part_titles  = {sprintf('PART 1: ARM  -  static + couple imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
                 sprintf('PART 2: MOMENTUM WHEELS  -  static + couple imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
                 'PART 3: BEARINGS  -  geometry, stiffness, preload and specified imperfections', ...
-                'PART 4: ALL TOGETHER  -  FINAL ANSWER, WORST-CASE ESTIMATE  (arm + wheels + bearings)'};
+                'PART 4: MOTORS (torque ripple, cogging) AND GYROSCOPIC MOMENT', ...
+                'PART 5: ALL TOGETHER  -  FINAL ANSWER, WORST-CASE ESTIMATE'};
 part_columns = {{'Arm'}, ...
                 {rotor_names{1}, rotor_names{3}, 'Wheels total'}, ...
                 {[rotor_names{1}, ' brg'], [rotor_names{2}, ' brg'], [rotor_names{3}, ' brg'], 'Bearings total'}, ...
-                {'Arm', 'Wheels', 'Bearings', 'TOTAL'}};
+                {[rotor_names{1}, ' mot'], [rotor_names{2}, ' mot'], [rotor_names{3}, ' mot'], 'Motors total', 'Gyroscopic'}, ...
+                {'Arm', 'Wheels', 'Bearings', 'Motors', 'Gyroscopic', 'TOTAL'}};
 part_values  = {arm_loads, ...
                 [wheel_loads, wheels_total], ...
                 [bearing_loads, bearings_total], ...
-                [arm_loads, wheels_total, bearings_total, all_total]};
+                [motor_loads, motors_total, gyro_total], ...
+                [arm_loads, wheels_total, bearings_total, motors_total, gyro_total, all_total]};
 
-for part = 1:4
+for part = 1:5
     columns = part_columns{part};
     values  = part_values{part};
     fprintf('\n%s\n %s\n%s\n', part_line, part_titles{part}, part_line);
@@ -823,11 +962,12 @@ for part = 1:4
 
     % Extra information for each part
     if part == 1
-        fprintf('\n   Fx = Fy: static imbalance %.4g N\n', static_imbalance_force_N(arm_index));
+        fprintf('\n   Fx = Fy: static imbalance %.4g N at the top of the ramp (%.4g N at constant speed)\n', ...
+            static_imbalance_force_N(arm_index), static_force_steady_N(arm_index));
         fprintf('   Mx = My: couple imbalance %.4g N*m + force x distance %.4g N*m\n', ...
             dynamic_imbalance_moment_Nm(arm_index), lever_arm_m(arm_index) * static_imbalance_force_N(arm_index));
         fprintf('   Frequency: 1x RPM = %.2f Hz\n', speed_hz(arm_index));
-        fprintf('   Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m\n', ...
+        fprintf('   Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m  (table shows the larger)\n', ...
             twist_spin_up_Nm(arm_index), twist_spin_down_Nm(arm_index));
     elseif part == 2
         for r = wheel_columns
@@ -838,7 +978,26 @@ for part = 1:4
                 rotor_names{r}, twist_spin_up_Nm(r), twist_spin_down_Nm(r));
         end
         fprintf('\n');
-    elseif part == 3
+    end
+    if part <= 2
+        if part == 1
+            harmonic_rotors = arm_index;
+        else
+            harmonic_rotors = wheel_columns;
+        end
+        for r = harmonic_rotors
+            if isempty(harmonics_entered{r})
+                fprintf('   %s higher imbalance harmonics: not included (no data entered)\n', rotor_names{r});
+            else
+                for i = 1:size(harmonics_entered{r}, 1)
+                    fprintf('   %s harmonic %gx: %.2f Hz, force %.4g N, moment %.4g N*m\n', rotor_names{r}, ...
+                        harmonics_entered{r}(i, 1), harmonics_entered{r}(i, 1) * speed_hz(r), ...
+                        harmonics_entered{r}(i, 2) * speed_rad_s(r) ^ 2, harmonics_entered{r}(i, 3) * speed_rad_s(r) ^ 2);
+                end
+            end
+        end
+    end
+    if part == 3
         fprintf('\n   Bearing model (per bearing; each rotor has bearing A and bearing B):\n');
         fprintf('   %-8s %9s %10s %12s %12s %12s %11s %11s %10s\n', 'Rotor', 'Q0 [N]', 'defl [um]', 'k roller', ...
             'K radial', 'K axial', 'fn lat', 'fn axial', 'stiffness');
@@ -873,6 +1032,28 @@ for part = 1:4
             end
         end
     elseif part == 4
+        fprintf('\n   Motor torque ripple and cogging (Mz on the mount):\n');
+        for r = 1:number_of_rotors
+            if isempty(motor_pole_pairs_entered{r})
+                fprintf('   %-8s not included (motor data not entered)\n', rotor_names{r});
+            else
+                for i = find(motor_line_rotor == r)
+                    fprintf('   %-8s %-14s n = %d   %9.2f Hz   %.4g N*m\n', rotor_names{r}, motor_line_source{i}, ...
+                        motor_line_n(i), motor_line_freq_hz(i), motor_line_Nm(i));
+                end
+                if ~any(motor_line_rotor == r)
+                    fprintf('   %-8s pole pairs given, but no ripple/cogging amplitudes entered\n', rotor_names{r});
+                end
+            end
+        end
+        fprintf('\n   Gyroscopic moment: spacecraft rate [%g %g %g] rad/s\n', spacecraft_rate_rad_s);
+        fprintf('   Stored momentum H [N*m*s]: %s %+.4g, %s %+.4g, %s %+.4g   ->  total %+.4g\n', ...
+            rotor_names{1}, momentum_Nms(1), rotor_names{2}, momentum_Nms(2), rotor_names{3}, momentum_Nms(3), sum(momentum_Nms));
+        fprintf('   Gyroscopic column = net moment of the assembly, -(rate x total H).\n');
+        if all(spacecraft_rate_rad_s == 0)
+            fprintf('   Spacecraft rate is zero (fixed base), so there is no gyroscopic moment.\n');
+        end
+    elseif part == 5
         fprintf('\n   Mz TOTAL is the NET twist: the wheels twist opposite to the arm, so they cancel.\n');
         fprintf('   Each motor mount still feels its own twist (see PART 1 and PART 2).\n');
         fprintf('   Net Mz: spin-up %+.4g N*m, spin-down %+.4g N*m  (table shows the larger)\n', ...
@@ -884,19 +1065,24 @@ for part = 1:4
         fprintf('     line up (phases are unknown). Real loads are equal or lower.\n');
         fprintf('   - Imbalance values are the specified balance limits. If Ud was not entered it is the static\n');
         fprintf('     tolerance in two planes, opposed (worst case). Bearing loads follow from the specified imperfections.\n');
+        fprintf('   - Mz TOTAL = net ramp twist + all motor ripple/cogging lines. Gyroscopic moment is added to Mx, My.\n');
         fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Imbalance and bearing imperfections at their specified limits.\n');
-        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, broadband noise.\n');
+        fprintf('   NOT INCLUDED: structural resonance, broadband noise, rotor flexibility, localized bearing defects.\n');
+        if all(cellfun(@isempty, motor_pole_pairs_entered))
+            fprintf('   NOT YET ENTERED: motor ripple/cogging data (that source is zero until entered).\n');
+        end
         if ~isempty(report_arm_rpm)
-            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; imbalance x speed^2, bearings recalculated)\n');
+            fprintf('\n   AT OTHER SPEEDS  (constant speed, no ramp; wheels follow the arm; Fx, Fz, Mx totals)\n');
             fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
             for i = 1:numel(report_arm_rpm)
                 speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
                 speed_line_force = bearing_line_force(speed_ratio);
                 lateral_lines = (line_dir == 1);
-                speed_Fx = (arm_loads(1) + wheels_total(1)) * speed_ratio ^ 2 + sum(speed_line_force(lateral_lines));
+                speed_Fx = sum(steady_force_N) * speed_ratio ^ 2 + sum(speed_line_force(lateral_lines));
                 speed_Fz = sum(speed_line_force(line_dir == 3));
-                speed_Mx = (arm_loads(4) + wheels_total(4)) * speed_ratio ^ 2 + ...
-                           sum(speed_line_force(lateral_lines) .* lever_arm_m(line_rotor(lateral_lines)));
+                speed_gyro = abs(-spacecraft_rate(2) * sum(momentum_Nms)) * speed_ratio;   % H grows with speed
+                speed_Mx = sum(steady_moment_Nm) * speed_ratio ^ 2 + ...
+                           sum(speed_line_force(lateral_lines) .* lever_arm_m(line_rotor(lateral_lines))) + speed_gyro;
                 fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
                     speed_Fx, speed_Fz, speed_Mx);
             end

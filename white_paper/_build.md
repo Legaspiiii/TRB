@@ -317,6 +317,9 @@ The same set of inputs is supplied separately for each wheel and for the arm.
 | Maximum (hold) speed | N | rev/min | Operating requirement |
 | Spin direction | ±1 | – | Design |
 | Position of the center of mass along the shaft | z | m | CAD |
+| Higher imbalance harmonics (optional): h, C~f~, C~m~ | – | –, kg·m, kg·m² | Specification or test |
+| Motor pole pairs and stator slots | p, N~s~ | – | Motor datasheet |
+| Motor torque ripple and cogging amplitudes, by harmonic | T~ripple~, T~cog~ | N·m | Motor datasheet or test |
 
 ### 5.2 Bearing inputs
 
@@ -345,6 +348,7 @@ Each rotating part has its own pair of tapered roller bearings, bearing A and be
 | Spin-up time | t~up~ | s | Motor control profile |
 | Spin-down time | t~down~ | s | Motor control profile |
 | Reference point position | z~ref~ | m | Mounting interface location |
+| Spacecraft angular rate about x, y, z | ω~s~ | rad/s | Mission attitude profile (zero for a fixed base) |
 | Other speeds of interest | – | rev/min | As requested |
 
 ### 5.4 Calculated, estimated and optional inputs
@@ -373,7 +377,15 @@ $$F_w = U_s\,\Omega_w^2$$
 
 $$M_w = U_d\,\Omega_w^2$$
 
-where U~s~ and U~d~ are the specified balance limits, entered directly or found from Equations (5), (11) and (12). Both loads grow with the square of speed, so doubling the speed quadruples them. Seen from the stationary shaft, each appears on the two sideways axes as a pair of equal sinusoids, 90° apart, as in Equations (45) and (46).
+where U~s~ and U~d~ are the specified balance limits, entered directly or found from Equations (5), (11) and (12). Both loads grow with the square of speed, so doubling the speed quadruples them.
+
+While the speed is changing, each imbalance also has a tangential part, U~s~ Ω̇ for the force and U~d~ Ω̇ for the moment, at right angles to the radial part. The peak values at the top of a ramp, which are the values carried in the load tables, are therefore:
+
+$$F_w = U_s\sqrt{\Omega_w^4 + \dot{\Omega}_w^2}, \qquad M_w = U_d\sqrt{\Omega_w^4 + \dot{\Omega}_w^2}$$
+
+with Ω̇~w~ from Equation (30) for the shorter of the two ramps. At constant speed Ω̇~w~ is zero and these reduce to Equations (50) and (51).
+
+**Higher imbalance harmonics.** Misalignment, runout and fits can produce imbalance-like loads at whole multiples h of the running speed. When coefficients are available, from a specification or a test, each harmonic h adds a lateral force C~f~ Ω~w~² and a rocking moment C~m~ Ω~w~² at frequency h f~r~, in the form of Equation (40). These are added to F~w~ and M~w~. Seen from the stationary shaft, each appears on the two sideways axes as a pair of equal sinusoids, 90° apart, as in Equations (45) and (46).
 
 ### 6.3 Moments at the reference point
 
@@ -397,7 +409,7 @@ $$T_{\mathrm{down}} = +\,I_{zz}\,\frac{\Omega_w}{t_{\mathrm{down}}}$$
 
 The signs show that the mount is twisted one way during spin-up and the other way during spin-down, and parts spinning in opposite directions produce opposite signs. The net twist of the assembly is the signed sum over all three parts, which the counter-rotating wheels bring close to zero.
 
-If the support structure rotated, each part would also apply a gyroscopic moment, Equation (36). Because all shafts are stationary, ω~s~ is zero and this moment does not arise. The tangential imbalance force of Equation (31) is also neglected, since it is under 1% of the main force for the ramp times used.
+The tangential imbalance term is included through Equation (52).
 
 ### 6.5 Bearing loads
 
@@ -428,16 +440,34 @@ $$M_{x,\mathrm{brg}} = M_{y,\mathrm{brg}} = F_{\mathrm{lat},\mathrm{brg}}\,L$$
 
 Below the natural frequency the bearing force reaches the shaft as the reaction to the rotor's motion, so it is taken to act at the rotor's center of mass, a distance L from the reference point. The linear model is checked by comparing the largest combined imperfection with the preload deflection δ_0 of Equation (20), and a warning is given if rollers could unload.
 
-### 6.6 Assembly totals
+### 6.6 Motor torque ripple and cogging
 
-The six components are summed over the arm, both wheels and all bearings, following Equation (39). Forces and rocking moments are added as peak values. The twist is added with its sign, and its magnitude is reported as the net assembly twist. Loads at any other operating point follow from Equation (38), using the arm speed, since the wheels track the arm at a fixed ratio.
+When the motor data is available, each motor adds torque lines about its spin axis. For a three-phase motor with p pole pairs and N~s~ slots, ripple lines fall at 6 n p f~r~ and cogging lines at n LCM(N~s~, 2p) f~r~, Equations (32) and (33), with amplitudes T~ripple,n~ and T~cog,n~ from the datasheet or a test. A slotless motor has no cogging. The stator reaction passes into the structure, so each amplitude is applied as a torque about z, with no reduction for the speed control loop:
 
-| Load | Arm and each wheel | Bearings |
-|---|---|---|
-| Fx, Fy | F~w~, Equation (50) | F~lat,brg~, Equation (57) |
-| Fz | 0 | F~ax,brg~, Equation (57) |
-| Mx, My | M~w~ + F~w~ L, Equation (53) | F~lat,brg~ L, Equation (58) |
-| Mz | Larger of T~up~ and T~down~, Equations (54) and (55) | 0, since bearing drag is reacted inside the assembly by the motor |
+$$M_{z,motor} = \sum_n T_{\mathrm{ripple},n} + \sum_n T_{\mathrm{cog},n}$$
+
+Until the motor data is entered, this source is reported as not included.
+
+### 6.7 Gyroscopic moment
+
+The stored momentum of each part is H~i~ = s~i~ I~zz,i~ Ω~i~ along z, where s~i~ = ±1 is its spin direction. If the supporting spacecraft rotates at ω~s~, the assembly applies the moment of Equation (36) using the total momentum:
+
+$$\mathbf{M}_{\mathrm{gyro}} = -\,\boldsymbol{\omega}_s \times \left(\sum_i H_i\right)\hat{\mathbf{z}}$$
+
+This moment is not rotating; it lies in the x–y plane and is added to Mx and My. With a fixed base, ω~s~ = 0 and it vanishes. Because the wheels are sized to cancel the arm's momentum, the total H, and with it the gyroscopic moment, is small even when the spacecraft rotates.
+
+### 6.8 Assembly totals
+
+The six components are summed over the arm, both wheels, all bearings, the motors and the gyroscopic moment, following Equation (39). Forces and rocking moments are added as peak values. The twist is added with its sign, and its magnitude is reported as the net assembly twist. The wheels track the arm at a fixed speed ratio, so a single arm speed defines each operating point.
+
+| Load | Arm and each wheel | Bearings | Motors | Gyroscopic |
+|---|---|---|---|---|
+| Fx, Fy | F~w~ with harmonics, Equation (52) | F~lat,brg~, Equation (58) | 0 | 0 |
+| Fz | 0 | F~ax,brg~, Equation (58) | 0 | 0 |
+| Mx, My | M~w~ + F~w~ L, Equation (54) | F~lat,brg~ L, Equation (59) | 0 | Equation (61) |
+| Mz | Larger of T~up~ and T~down~, Equations (55) and (56), summed with sign | 0, since bearing drag is reacted inside the assembly by the motor | Equation (60) | 0 |
+
+The net twist of the three parts is added to the motor ripple and cogging to give the total Mz. Loads at other constant speeds are found with the imbalance terms scaled by Equation (38), the bearing lines recalculated at the new frequencies, and the gyroscopic moment scaled linearly with speed, since H grows with speed.
 
 ## 7. Analysis Method
 
@@ -449,7 +479,7 @@ Three decisions frame everything that follows. First, the loads are hard-mounted
 
 All three parts are handled by the same equations and the same code. Nothing in the method is specific to wheels or arms, so it applies equally to any number of rotors on parallel shafts, provided the inputs for each are supplied.
 
-Of the sources described in Section 2, the method includes those that can be estimated from the design data available: static imbalance, dynamic imbalance, motor reaction torque and the bearings. The remaining sources are left out for specific reasons. Motor ripple and cogging need the motor pole and slot counts and ripple data, which were not yet available. Broadband noise has no deterministic model and can only be measured. Gyroscopic moments are zero because all three shafts are stationary, and even if the assembly were carried on a moving base, the counter-rotating wheels are sized to bring its total angular momentum close to zero, as in Equation (37). Each of these can be added later without changing the rest of the method.
+The method is built around the full calculation first, with every input it needs defined in advance, so that values can be entered as they become available. It includes every source of Section 2 that has a deterministic model: static and couple imbalance with their acceleration terms, higher imbalance harmonics, motor reaction torque, the tapered roller bearings, motor torque ripple and cogging, and the gyroscopic moment from motion of the spacecraft. Sources whose data has not yet been entered, such as motor ripple or imbalance harmonics, are reported as not included rather than estimated. Broadband noise is the one source left out entirely, because it has no deterministic model and can only be measured.
 
 ### 7.2 Static imbalance from the eccentricity specification
 
@@ -463,11 +493,11 @@ Couple imbalance is now treated the same way as static imbalance, as a specified
 
 ### 7.4 Moments at the reference point
 
-Each part's loads are moved from its center of mass to the reference point in a single step, using Equation (52), so that no lever arm is counted twice. Moving the reference point changes the moments but not the forces, which lets the same calculation report loads at whichever interface the structures team needs.
+Each part's loads are moved from its center of mass to the reference point in a single step, using Equation (53), so that no lever arm is counted twice. Moving the reference point changes the moments but not the forces, which lets the same calculation report loads at whichever interface the structures team needs.
 
 ### 7.5 Twist during spin-up and spin-down
 
-The twist about the shaft was calculated separately for spin-up and spin-down, Equations (54) and (55), because the two ramps can have different durations. The load tables carry the larger of the two values for each part. When the twists of all three parts are added with their signs, the counter-rotating wheels largely cancel the arm, which is the purpose of the wheels. The net value is reported as the assembly's twist, but each motor mount still carries its own full torque, and those values are reported separately so that the individual mounts can be checked.
+The twist about the shaft was calculated separately for spin-up and spin-down, Equations (55) and (56), because the two ramps can have different durations. The load tables carry the larger of the two values for each part. When the twists of all three parts are added with their signs, the counter-rotating wheels largely cancel the arm, which is the purpose of the wheels. The net value is reported as the assembly's twist, but each motor mount still carries its own full torque, and those values are reported separately so that the individual mounts can be checked.
 
 ### 7.6 Bearings
 
@@ -495,15 +525,15 @@ The method is implemented in a single MATLAB script. The only part a user edits 
 
 ## 8. Assumptions and Limitations
 
-The method rests on a small number of assumptions, each chosen either because it is the standard convention for source loads or because it errs toward a larger, safer answer. The parts are treated as rigid and the mount as perfectly stiff, which is the hard-mounted convention. All peaks are added as though they occur together, since the phases between sources are unknown. Fx and Fy are peak values of the same rotating force, reached a quarter turn apart, so the resultant lateral force equals Fx rather than √2 times Fx, and the same is true of Mx and My. Speed changes are taken to occur at a constant rate, and the shafts do not move in space, so there is no gyroscopic load from motion of the base.
+The method rests on a small number of assumptions, each chosen either because it is the standard convention for source loads or because it errs toward a larger, safer answer. The parts are treated as rigid and the mount as perfectly stiff, which is the hard-mounted convention. All peaks are added as though they occur together, since the phases between sources are unknown. Fx and Fy are peak values of the same rotating force, reached a quarter turn apart, so the resultant lateral force equals Fx rather than √2 times Fx, and the same is true of Mx and My. Speed changes are taken to occur at a constant rate. Motor ripple and cogging are applied at full amplitude with no reduction for the speed control loop.
 
 The imbalance values are specified limits, not measurements. Where no couple limit is specified, it is taken as the static tolerance in two planes with the residuals opposed, which should be confirmed or replaced by a couple requirement. The bearing loads are only as good as the specified imperfection amplitudes, which come from tolerance classes rather than measurement. The bearing model is linear about the preload and assumes every roller stays loaded. It uses Palmgren's empirical line-contact relation for stiffness, includes only the rotor's lateral and axial modes on its bearings (not its rocking mode), adds the lines of both bearings and all sources in phase, and assumes a typical damping ratio.
 
-Some effects are outside the scope of the method. It does not include structural resonance, which can raise the loads well above the hard-mounted values near a natural frequency. It does not include motor torque ripple or cogging, imbalance harmonics above the running speed, or broadband noise, and it does not model localized bearing defects such as spalls, which belong to failure analysis rather than to the induced loads of a healthy bearing. It also neglects the small tangential imbalance force during speed ramps, which is under 1% of the main force for ramps of around ten seconds.
+Some effects are outside the scope of the method. It does not include structural resonance, which can raise the loads well above the hard-mounted values near a natural frequency. It does not include broadband noise, which can only be measured, flexibility of the rotors themselves, small radial magnetic forces inside the motors, or localized bearing defects such as spalls, which belong to failure analysis rather than to the induced loads of a healthy bearing. Motor ripple, cogging and higher imbalance harmonics are included in the method but contribute only once their data is entered.
 
 ## 9. Next Steps and Conclusion
 
-The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. A couple imbalance requirement will be defined or confirmed with the rotor designers, and the bearing imperfection amplitudes with inspection data or supplier vibration data. Motor torque ripple can be added once the motor pole and slot counts and ripple data are known. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
+The next steps follow directly from the estimates and exclusions above. The final CAD mass properties, speeds, positions and bearing part numbers will be entered to produce the load values for our hardware. A couple imbalance requirement will be defined or confirmed with the rotor designers, and the bearing imperfection amplitudes with inspection data or supplier vibration data. The motor pole and slot counts and ripple and cogging amplitudes will be entered from the motor datasheets, and the spacecraft angular rates from the attitude profile. The loads and the bearing frequencies will be passed to the structural analysis to check for modes close to any disturbance frequency, and once hardware is built, the assembly will be measured on a force table and compared with these estimates.
 
 Induced vibration from rotating machinery comes down to a short list of physical effects. A rotor whose center of mass is off its axis pushes sideways. A rotor whose principal axis is tilted rocks its shaft. A rotor that changes speed twists its mount. The bearings add small disturbances at frequencies set by their geometry, with sizes set by their stiffness, preload and imperfections. For our assembly, each of these was estimated from design data alone, in a form that is conservative, can be checked by hand, and can be refined one input at a time as better data becomes available.
 
