@@ -22,9 +22,18 @@
 %    3. TWIST (each rotor)
 %       Motor reaction torque on the shaft during spin-up / spin-down:
 %       Mz = Izz x speed / ramp time
+%       Spin-up and spin-down are printed separately; the tables use the
+%       larger one (shorter ramp = bigger twist).
 %
 %  Assumptions (state these in your report):
 %    - Hard-mounted: loads are calculated as if bolted to a rigid base.
+%    - WORST CASE: all peaks are added as if they line up at the same
+%      moment (phases are unknown). Real loads are equal or lower.
+%    - Fx and Fy (and Mx and My) are peak values reached a quarter turn
+%      apart, NOT at the same time: the sideways resultant = Fx, not 1.41 x Fx.
+%    - Ud uses the larger of |Izz-Ixx| and |Izz-Iyy| (worst tilt direction).
+%    - Bearing values, including Fz = lateral x tan(cup angle), are rough
+%      estimates (bearing_kick_ratio, both bearings of a pair lumped together).
 %    - Tilt and bearing_kick_ratio are estimates (no test data).
 %    - Not included: structural resonance, motor torque ripple,
 %      test-based bearing amplitudes.
@@ -42,7 +51,9 @@
 %         PART 3  BEARINGS          (harmonics only)
 %         PART 4  ALL TOGETHER      <- the final answer, at the very bottom
 %       The final answer is also saved as final_Fx_N ... final_Mz_Nm.
-%    4. A SELF-CHECK prints first: every line should say PASS.
+%    4. ARITHMETIC CHECKS print first: every line should say PASS.
+%       (They prove the code does its math right, not that the inputs
+%        or estimates are physically right.)
 %  ========================================================================
 
 clear; clc;
@@ -184,7 +195,12 @@ speed_hz         = max_speed_rpm / 60;              % [Hz]  revolutions per seco
 eccentricity_m   = eccentricity_um * 1e-6;          % [m]
 tilt_rad         = tilt_deg * pi / 180;             % [rad]
 lever_arm_m      = abs(position_m - reference_position_m);   % [m] distance to the reference point
-ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
+ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);   % shorter ramp = worst case (used in tables)
+
+% Twist on the mount (reaction torque = -Izz x acceleration), spin-up and spin-down separately.
+% Sign shows direction: spin-up and spin-down twist the mount opposite ways.
+twist_spin_up_Nm   = -spin_direction .* Izz_kgm2 .* speed_rad_s / max(spin_up_time_s, eps);
+twist_spin_down_Nm =  spin_direction .* Izz_kgm2 .* speed_rad_s / max(spin_down_time_s, eps);
 
 
 %% ========================================================================
@@ -192,6 +208,7 @@ ramp_time_s      = max(min(spin_up_time_s, spin_down_time_s), eps);
 %  ========================================================================
 
 % Step 1: calculated values (used unless you typed your own Us / Ud)
+%   Ud uses the LARGER inertia difference: the worst tilt direction (conservative).
 static_imbalance_kgm   = mass_kg .* eccentricity_m;                                              % Us [kg*m]
 dynamic_imbalance_kgm2 = max(abs(Izz_kgm2 - Ixx_kgm2), abs(Izz_kgm2 - Iyy_kgm2)) .* tilt_rad;   % Ud [kg*m^2]
 static_source  = {'calculated', 'calculated', 'calculated'};
@@ -312,7 +329,9 @@ final_Mz_Nm = all_total(6);
 
 
 %% ========================================================================
-%  SECTION 6B: SELF-CHECK  (the script checks its own math every run)
+%  SECTION 6B: ARITHMETIC CHECKS  (the script checks its own math every run)
+%  NOTE: these prove the code calculates its equations correctly. They do
+%  NOT prove the inputs or estimates (tilt, bearing_kick_ratio) are right.
 %  ------------------------------------------------------------------------
 %  Each check redoes a result a DIFFERENT way (by hand formula or a known
 %  identity) and compares it with what the script calculated above.
@@ -463,11 +482,12 @@ end
 %  ========================================================================
 
 row_labels = {'Fx  [N]   sideways', 'Fy  [N]   sideways', 'Fz  [N]   along shaft', ...
-              'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist (ramps)'};
+              'Mx  [N*m] tipping',  'My  [N*m] tipping',  'Mz  [N*m] twist (worst ramp)'};
 part_line  = repmat('=', 1, 90);
 
-% ---- Self-check results (from SECTION 6B) ----
-fprintf('\n%s\n SELF-CHECK  -  script math vs hand calculations\n%s\n', part_line, part_line);
+% ---- Arithmetic check results (from SECTION 6B) ----
+fprintf('\n%s\n ARITHMETIC CHECKS  -  script math vs hand calculations\n', part_line);
+fprintf(' (proves the math is done right, not that the inputs/estimates are right)\n%s\n', part_line);
 for k = 1:number_of_checks
     if check_passed(k)
         fprintf('   PASS   %s\n', check_names{k});
@@ -486,5 +506,82 @@ fprintf('\n   Imbalance used:\n');
 for r = 1:number_of_rotors
     fprintf('   %-8s  Us = %-10.4g kg*m   (%s)     Ud = %-10.4g kg*m^2   (%s)\n', rotor_names{r}, ...
         static_imbalance_kgm(r), static_source{r}, dynamic_imbalance_kgm2(r), dynamic_source{r});
+end
+
+part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
+                sprintf('PART 2: MOMENTUM WHEELS  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
+                'PART 3: BEARINGS  -  harmonics of each rotor''s RPM  (rough estimate)', ...
+                'PART 4: ALL TOGETHER  -  FINAL ANSWER, WORST-CASE ESTIMATE  (arm + wheels + bearings)'};
+part_columns = {{'Arm'}, ...
+                {rotor_names{1}, rotor_names{3}, 'Wheels total'}, ...
+                {[rotor_names{1}, ' brg'], [rotor_names{2}, ' brg'], [rotor_names{3}, ' brg'], 'Bearings total'}, ...
+                {'Arm', 'Wheels', 'Bearings', 'TOTAL'}};
+part_values  = {arm_loads, ...
+                [wheel_loads, wheels_total], ...
+                [bearing_loads, bearings_total], ...
+                [arm_loads, wheels_total, bearings_total, all_total]};
+
+for part = 1:4
+    columns = part_columns{part};
+    values  = part_values{part};
+    fprintf('\n%s\n %s\n%s\n', part_line, part_titles{part}, part_line);
+    fprintf('   %-26s', '');
+    fprintf('%16s', columns{:});
+    fprintf('\n');
+    for k = 1:6
+        fprintf('   %-26s', row_labels{k});
+        fprintf('%16.4g', values(k, :));
+        fprintf('\n');
+    end
+
+    % Extra information for each part
+    if part == 1
+        fprintf('\n   Fx = Fy: static imbalance %.4g N\n', static_imbalance_force_N(arm_index));
+        fprintf('   Mx = My: dynamic imbalance %.4g N*m + force x distance %.4g N*m\n', ...
+            dynamic_imbalance_moment_Nm(arm_index), lever_arm_m(arm_index) * static_imbalance_force_N(arm_index));
+        fprintf('   Frequency: 1x RPM = %.2f Hz\n', speed_hz(arm_index));
+        fprintf('   Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m\n', ...
+            twist_spin_up_Nm(arm_index), twist_spin_down_Nm(arm_index));
+    elseif part == 2
+        for r = wheel_columns
+            fprintf('\n   %s:  Fx = Fy static imbalance %.4g N  |  Mx = My: dynamic imbalance %.4g + force x distance %.4g N*m  |  1x = %.2f Hz', ...
+                rotor_names{r}, static_imbalance_force_N(r), dynamic_imbalance_moment_Nm(r), ...
+                lever_arm_m(r) * static_imbalance_force_N(r), speed_hz(r));
+            fprintf('\n   %s:  Mz twist on mount: spin-up %+.4g N*m, spin-down %+.4g N*m', ...
+                rotor_names{r}, twist_spin_up_Nm(r), twist_spin_down_Nm(r));
+        end
+        fprintf('\n');
+    elseif part == 3
+        fprintf('\n   Each harmonic (frequency = harmonic x RPM / 60):\n');
+        fprintf('   %-10s %-13s %10s %12s %14s %14s\n', 'Rotor', 'Harmonic', 'x RPM', 'Freq [Hz]', 'Fx = Fy [N]', 'Fz [N]');
+        for r = 1:number_of_rotors
+            for k = 1:number_of_harmonics
+                fprintf('   %-10s %-13s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, harmonic_names{k}, ...
+                    bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
+            end
+        end
+    elseif part == 4
+        fprintf('\n   Mz TOTAL is the NET twist: the wheels twist opposite to the arm, so they cancel.\n');
+        fprintf('   Each motor mount still feels its own twist (see PART 1 and PART 2).\n');
+        fprintf('   Net Mz: spin-up %+.4g N*m, spin-down %+.4g N*m  (table shows the larger)\n', ...
+            sum(twist_spin_up_Nm), sum(twist_spin_down_Nm));
+        fprintf('\n   HOW TO READ THIS TABLE:\n');
+        fprintf('   - Fx and Fy are peak values reached a quarter turn apart, NOT at the same time.\n');
+        fprintf('     The sideways resultant = Fx (not 1.41 x Fx). Same for Mx and My.\n');
+        fprintf('   - WORST CASE: every source and every moment part is added as if their peaks\n');
+        fprintf('     line up (phases are unknown). Real loads are equal or lower.\n');
+        fprintf('   - Ud uses the worst tilt direction. Bearing values (incl. Fz) are rough estimates.\n');
+        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt and bearing kick ratio are estimates.\n');
+        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, test-based bearing amplitudes.\n');
+        if ~isempty(report_arm_rpm)
+            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; every value grows with speed squared)\n');
+            fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
+            for i = 1:numel(report_arm_rpm)
+                speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
+                fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
+                    all_total(1) * speed_ratio ^ 2, all_total(3) * speed_ratio ^ 2, all_total(4) * speed_ratio ^ 2);
+            end
+        end
+    end
 end
 fprintf('%s\n', part_line);
