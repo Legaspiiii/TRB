@@ -31,7 +31,7 @@
 %      apart, NOT at the same time: the sideways resultant = Fx, not 1.41 x Fx.
 %    - If Ud is not entered, it is the static tolerance in two planes, opposed
 %      (worst case): Ud = (Us / 2) x plane spacing.
-%    - Bearing loads come from the SPECIFIED imperfection amplitudes; they are
+%    - Bearing loads come from the SPECIFIED waviness; they are
 %      only as good as those numbers (use drawing / bearing class tolerances).
 %    - Bearing model is linear about the preload (rollers stay loaded) and uses
 %      the rotor's lateral and axial modes only (no rocking mode).
@@ -494,7 +494,7 @@ largest_imposed_m = max(4 * waviness_m, [], 2)';        % outer + inner race + r
 linearity_ratio   = largest_imposed_m ./ roller_defl_m;   % keep well below 1 (rollers stay loaded)
 
 % ---- 5D. Force that reaches the stationary shaft ----
-%  The imperfection pushes the rotor on its bearings. Below the rotor-bearing
+%  The waviness pushes the rotor on its bearings. Below the rotor-bearing
 %  natural frequency the rotor follows and only its inertia force reaches the
 %  shaft; far above it the full blocked force does. Transmissibility:
 transmissibility = @(ratio) ratio .^ 2 ./ sqrt((1 - ratio .^ 2) .^ 2 + (2 * bearing_damping_ratio * ratio) .^ 2);
@@ -922,18 +922,9 @@ for part = 1:5
         fprintf('\n');
     end
     if part == 3
-        fprintf('\n   Bearing model (per bearing; each rotor has bearing A and bearing B):\n');
-        fprintf('   %-8s %9s %10s %12s %12s %12s %11s %11s\n', 'Rotor', 'Q0 [N]', 'defl [um]', 'k roller', ...
-            'K radial', 'K axial', 'fn lat', 'fn axial');
-        fprintf('   %-8s %9s %10s %12s %12s %12s %11s %11s\n', '', '', '', '[N/m]', '[N/m]', '[N/m]', '[Hz]', '[Hz]');
-        for r = 1:number_of_rotors
-            fprintf('   %-8s %9.4g %10.3g %12.4g %12.4g %12.4g %11.4g %11.4g\n', rotor_names{r}, roller_load_N(r), ...
-                roller_defl_m(r) * 1e6, roller_stiffness_Npm(r), bearing_radial_stiffness_Npm(r), ...
-                bearing_axial_stiffness_Npm(r), natural_freq_radial_hz(r), natural_freq_axial_hz(r));
-        end
         for r = 1:number_of_rotors
             if linearity_ratio(r) > 0.5
-                fprintf('   WARNING %s: waviness are %.0f%% of the preload deflection - rollers may unload,\n', ...
+                fprintf('   WARNING %s: waviness is %.0f%% of the preload deflection - rollers may unload,\n', ...
                     rotor_names{r}, 100 * linearity_ratio(r));
                 fprintf('           the linear bearing model is not reliable. Raise the preload or check the inputs.\n');
             end
@@ -945,16 +936,8 @@ for part = 1:5
             fprintf('   %-8s %12.2f %16.2f %16.2f %13.2f\n', rotor_names{r}, bearing_frequency_hz(r, :));
         end
 
-        direction_names = {'lateral', '', 'axial'};
-        for r = 1:number_of_rotors
-            fprintf('\n   %s bearing lines  (blocked = stiffness x waviness; at shaft = after rotor-bearing dynamics)\n', rotor_names{r});
-            fprintf('   %10s  %-8s %-22s %-12s %12s %12s %13s\n', 'Freq [Hz]', 'Dir', 'Source', 'Order q', ...
-                'Blocked A', 'Blocked B', 'At shaft [N]');
-            for i = find(line_rotor == r)
-                fprintf('   %10.2f  %-8s %-22s %-12s %12.4g %12.4g %13.4g\n', line_freq_hz(i), direction_names{line_dir(i)}, ...
-                    line_source{i}, line_order{i}, line_blocked_N(i, 1), line_blocked_N(i, 2), line_force_N(i));
-            end
-        end
+        fprintf('\n   Each bearing force above is the sum of its lines (frequencies listed here and\n');
+        fprintf('   their multiples). Line-by-line values are in line_freq_hz and line_force_N.\n');
     elseif part == 4
         fprintf('\n   Motor torque ripple and cogging (Mz on the mount):\n');
         for r = 1:number_of_rotors
