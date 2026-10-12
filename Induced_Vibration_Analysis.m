@@ -14,13 +14,23 @@
 %                             M = Ud x speed^2,   Ud = (Izz - I_perpendicular) x tilt
 %                             (Us and Ud can also be typed in directly)
 %
-%    2. BEARINGS (each rotor's tapered roller bearing pair)
-%       Rollers passing over tiny bumps on the rings give small kicks at
-%       harmonics of the rotor's RPM (cage, cup pass, cone pass, roller spin).
-%       - Harmonic numbers come from the bearing geometry (exact).
-%       - Kick strength = bearing_kick_ratio x static imbalance force (estimate).
-%       - Tapered rollers push at the cup angle, so every kick also has an
-%         axial part: axial = lateral x tan(cup angle).
+%    2. BEARINGS (each rotor's back-to-back tapered roller bearing pair,
+%       bearing A and bearing B modelled separately)
+%       Physics-based model built from geometry, stiffness, preload and
+%       specified geometric imperfections:
+%       - Preload -> load per roller Q0 = preload / (Z sin(angle))
+%       - Palmgren line contact -> roller stiffness k = (10/9) Q0 / deflection
+%       - Bearing stiffness: radial (Z/2) k cos^2(angle), axial Z k sin^2(angle)
+%       - Imperfections (outer race, inner race and roller waviness, roller
+%         size variation) push the rollers in and out. Summed over all
+%         rollers, only some waviness orders q give a net force:
+%           lateral: q = kZ +/- 1      axial: q = kZ      (races)
+%           q = 2k (even orders)                          (rollers)
+%         Each one gives its own frequency line (k = 1 .. bearing_harmonic_count).
+%       - Force if the rotor could not move ("blocked") = stiffness x imperfection.
+%         The rotor sits on its bearings, so the force that reaches the
+%         stationary shaft is the blocked force x transmissibility:
+%           T = r^2 / sqrt((1 - r^2)^2 + (2 zeta r)^2),  r = line freq / rotor-bearing natural freq
 %
 %    3. TWIST (each rotor)
 %       Motor reaction torque on the shaft during spin-up / spin-down:
@@ -35,11 +45,12 @@
 %    - Fx and Fy (and Mx and My) are peak values reached a quarter turn
 %      apart, NOT at the same time: the sideways resultant = Fx, not 1.41 x Fx.
 %    - Ud uses the larger of |Izz-Ixx| and |Izz-Iyy| (worst tilt direction).
-%    - Bearing values, including Fz = lateral x tan(cup angle), are rough
-%      estimates (bearing_kick_ratio, both bearings of a pair lumped together).
-%    - Tilt and bearing_kick_ratio are estimates (no test data).
-%    - Not included: structural resonance, motor torque ripple,
-%      test-based bearing amplitudes.
+%    - Bearing loads come from the SPECIFIED imperfection amplitudes; they are
+%      only as good as those numbers (use drawing / bearing class tolerances).
+%    - Bearing model is linear about the preload (rollers stay loaded) and uses
+%      the rotor's lateral and axial modes only (no rocking mode).
+%    - Tilt is an estimate (no test data).
+%    - Not included: structural resonance, motor torque ripple, broadband noise.
 %
 %  Directions:
 %    lateral = sideways (perpendicular to the shaft)
@@ -73,7 +84,9 @@ fprintf('Calculating...\n');
 spin_up_time_s       = 10;     % [s] time to go from 0 to max speed   (for the twist)
 spin_down_time_s     = 10;     % [s] time to go from max speed to 0    (for the twist)
 reference_position_m = 0;      % [m] point along the shaft where total moments are reported
-bearing_kick_ratio   = 0.01;   % [-] each bearing harmonic = this fraction of the static imbalance force (0.01 = 1%)
+bearing_harmonic_count = 2;    % [-] how many harmonics (k = 1, 2, ...) of each bearing disturbance to include
+bearing_damping_ratio  = 0.03; % [-] damping of the rotor-on-bearing modes (0.02 - 0.05 is typical)
+roller_waviness_sum    = 'worst';  % 'worst' = all rollers' waviness in phase (x Z), 'random' = random phases (x sqrt(Z))
 report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wheels follow at the same
                                   %       ratio as the max speeds). Use [] for none.
 
@@ -87,6 +100,19 @@ report_arm_rpm       = [50 200];  % [RPM] extra arm speeds to get results at (wh
 %        Us: 1 g*mm = 1e-6 kg*m      1 g*cm = 1e-5 kg*m
 %        Ud: 1 g*mm^2 = 1e-9 kg*m^2  1 g*cm^2 = 1e-7 kg*m^2
 %   Each one is independent: you can enter Us and let Ud be calculated.
+% ------------------------------------------------------------------------
+
+% ------------------------------------------------------------------------
+% BEARING INPUTS (each rotor has a back-to-back PAIR: bearing A and bearing B)
+%   Geometry (catalog): rollers, roller diameter, pitch diameter, cup angle,
+%                       effective roller contact length
+%   Preload           : axial preload on the pair [N] (from assembly spec)
+%   Stiffness         : leave [] to calculate it from geometry + preload,
+%                       or enter the supplier's RADIAL stiffness per bearing [N/m]
+%   Imperfections     : amplitude of each imperfection [um], as [bearing A, bearing B]
+%                       waviness = amplitude at the critical waviness orders
+%                       roller size variation = largest roller minus nominal (diameter)
+%                       Take these from the bearing precision class / drawing tolerances.
 % ------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------
@@ -110,6 +136,13 @@ wheel1_bearing_rollers        = 15;   % [-]   number of rollers      (bearing ca
 wheel1_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
 wheel1_bearing_pitch_dia_mm   = 39;   % [mm]  pitch diameter         (bearing catalog)
 wheel1_bearing_cup_angle_deg  = 14;   % [deg] cup (contact) angle    (bearing catalog)
+wheel1_bearing_roller_length_mm   = 8 ;    % [mm]  effective roller contact length (catalog / drawing)
+wheel1_bearing_preload_N          = 500;  % [N]   axial preload on the bearing pair
+wheel1_bearing_radial_stiffness_Npm = [];  % [N/m] OPTIONAL supplier radial stiffness per bearing. [] = calculate
+wheel1_bearing_outer_waviness_um  = [0.05 0.05];  % [um] outer race (cup) waviness   [bearing A, bearing B]
+wheel1_bearing_inner_waviness_um  = [0.05 0.05];  % [um] inner race (cone) waviness  [bearing A, bearing B]
+wheel1_bearing_roller_waviness_um = [0.03 0.03];  % [um] roller waviness             [bearing A, bearing B]
+wheel1_bearing_roller_size_var_um = [0.25 0.25];  % [um] roller diameter variation   [bearing A, bearing B]
 
 % ------------------------------------------------------------------------
 % 1C. ARM
@@ -132,6 +165,13 @@ arm_bearing_rollers           = 20;   % [-]   number of rollers      (bearing ca
 arm_bearing_roller_dia_mm     = 8;    % [mm]  mean roller diameter   (bearing catalog)
 arm_bearing_pitch_dia_mm      = 55;   % [mm]  pitch diameter         (bearing catalog)
 arm_bearing_cup_angle_deg     = 15;   % [deg] cup (contact) angle    (bearing catalog)
+arm_bearing_roller_length_mm   = 10;    % [mm]  effective roller contact length (catalog / drawing)
+arm_bearing_preload_N          = 900;  % [N]   axial preload on the bearing pair
+arm_bearing_radial_stiffness_Npm = [];  % [N/m] OPTIONAL supplier radial stiffness per bearing. [] = calculate
+arm_bearing_outer_waviness_um  = [0.05 0.05];  % [um] outer race (cup) waviness   [bearing A, bearing B]
+arm_bearing_inner_waviness_um  = [0.05 0.05];  % [um] inner race (cone) waviness  [bearing A, bearing B]
+arm_bearing_roller_waviness_um = [0.03 0.03];  % [um] roller waviness             [bearing A, bearing B]
+arm_bearing_roller_size_var_um = [0.25 0.25];  % [um] roller diameter variation   [bearing A, bearing B]
 
 % ------------------------------------------------------------------------
 % 1D. WHEEL 2
@@ -154,6 +194,13 @@ wheel2_bearing_rollers        = 15;   % [-]   number of rollers      (bearing ca
 wheel2_bearing_roller_dia_mm  = 7;    % [mm]  mean roller diameter   (bearing catalog)
 wheel2_bearing_pitch_dia_mm   = 39;   % [mm]  pitch diameter         (bearing catalog)
 wheel2_bearing_cup_angle_deg  = 14;   % [deg] cup (contact) angle    (bearing catalog)
+wheel2_bearing_roller_length_mm   = 8 ;    % [mm]  effective roller contact length (catalog / drawing)
+wheel2_bearing_preload_N          = 500;  % [N]   axial preload on the bearing pair
+wheel2_bearing_radial_stiffness_Npm = [];  % [N/m] OPTIONAL supplier radial stiffness per bearing. [] = calculate
+wheel2_bearing_outer_waviness_um  = [0.05 0.05];  % [um] outer race (cup) waviness   [bearing A, bearing B]
+wheel2_bearing_inner_waviness_um  = [0.05 0.05];  % [um] inner race (cone) waviness  [bearing A, bearing B]
+wheel2_bearing_roller_waviness_um = [0.03 0.03];  % [um] roller waviness             [bearing A, bearing B]
+wheel2_bearing_roller_size_var_um = [0.25 0.25];  % [um] roller diameter variation   [bearing A, bearing B]
 
 % ------------------------------------------------------------------------
 % 1E. PLOTS
@@ -193,6 +240,15 @@ bearing_rollers       = [wheel1_bearing_rollers,       arm_bearing_rollers,     
 bearing_roller_dia_mm = [wheel1_bearing_roller_dia_mm, arm_bearing_roller_dia_mm, wheel2_bearing_roller_dia_mm];
 bearing_pitch_dia_mm  = [wheel1_bearing_pitch_dia_mm,  arm_bearing_pitch_dia_mm,  wheel2_bearing_pitch_dia_mm];
 bearing_cup_angle_deg = [wheel1_bearing_cup_angle_deg, arm_bearing_cup_angle_deg, wheel2_bearing_cup_angle_deg];
+bearing_roller_length_mm = [wheel1_bearing_roller_length_mm, arm_bearing_roller_length_mm, wheel2_bearing_roller_length_mm];
+bearing_preload_N        = [wheel1_bearing_preload_N,        arm_bearing_preload_N,        wheel2_bearing_preload_N];
+radial_stiffness_entered = {wheel1_bearing_radial_stiffness_Npm, arm_bearing_radial_stiffness_Npm, wheel2_bearing_radial_stiffness_Npm};
+
+% Imperfections: rows = [Wheel 1; Arm; Wheel 2], columns = [bearing A, bearing B]   [m]
+outer_waviness_m  = 1e-6 * [wheel1_bearing_outer_waviness_um;  arm_bearing_outer_waviness_um;  wheel2_bearing_outer_waviness_um];
+inner_waviness_m  = 1e-6 * [wheel1_bearing_inner_waviness_um;  arm_bearing_inner_waviness_um;  wheel2_bearing_inner_waviness_um];
+roller_waviness_m = 1e-6 * [wheel1_bearing_roller_waviness_um; arm_bearing_roller_waviness_um; wheel2_bearing_roller_waviness_um];
+roller_size_var_m = 1e-6 * [wheel1_bearing_roller_size_var_um; arm_bearing_roller_size_var_um; wheel2_bearing_roller_size_var_um];
 
 
 %% ========================================================================
@@ -252,31 +308,131 @@ dynamic_imbalance_moment_Nm = dynamic_imbalance_kgm2 .* speed_rad_s .^ 2;
 
 
 %% ========================================================================
-%  SECTION 5: BEARING HARMONICS
+%  SECTION 5: BEARING DISTURBANCE MODEL
 %  ------------------------------------------------------------------------
-%  Harmonic number h = number of kicks per revolution of that rotor.
-%  Frequency = h x (rotor RPM / 60).
-%  Cup (outer ring) rotates with the rotor, cone (inner ring) is on the
-%  stationary shaft.
+%  5A. Characteristic frequencies (pure geometry)
+%      Cup (outer race) turns with the rotor at fr, cone (inner race) is on
+%      the stationary shaft. Harmonic number h = events per revolution.
+%  5B. Stiffness from geometry and preload
+%  5C. Disturbance lines from the specified imperfections
+%  5D. Force that reaches the stationary shaft (rotor-on-bearing dynamics)
 %  ========================================================================
 
-harmonic_names   = {'Cage', 'Cup pass', 'Cone pass', 'Roller spin'};
+% ---- 5A. Characteristic frequencies ----
+harmonic_names   = {'Cage', 'Outer race pass', 'Inner race pass', 'Roller spin'};
 number_of_harmonics = 4;
 bearing_harmonic = zeros(number_of_rotors, number_of_harmonics);   % rows = rotors
 
 for r = 1:number_of_rotors
     g = bearing_roller_dia_mm(r) * cosd(bearing_cup_angle_deg(r)) / bearing_pitch_dia_mm(r);
     bearing_harmonic(r, 1) = (1 + g) / 2;                                                   % cage
-    bearing_harmonic(r, 2) = bearing_rollers(r) * (1 - g) / 2;                              % cup pass
-    bearing_harmonic(r, 3) = bearing_rollers(r) * (1 + g) / 2;                              % cone pass
+    bearing_harmonic(r, 2) = bearing_rollers(r) * (1 - g) / 2;                              % outer race (cup) pass
+    bearing_harmonic(r, 3) = bearing_rollers(r) * (1 + g) / 2;                              % inner race (cone) pass
     bearing_harmonic(r, 4) = bearing_pitch_dia_mm(r) / (2 * bearing_roller_dia_mm(r)) * (1 - g ^ 2);  % roller spin
 end
+bearing_frequency_hz = bearing_harmonic .* (speed_hz');            % [Hz] rows = rotors
 
-bearing_frequency_hz  = bearing_harmonic .* (speed_hz');                        % [Hz] rows = rotors
-bearing_lateral_each_N = bearing_kick_ratio * static_imbalance_force_N;                           % one harmonic, sideways
-bearing_axial_each_N   = bearing_lateral_each_N .* tand(bearing_cup_angle_deg);  % one harmonic, along the shaft
-bearing_lateral_N      = number_of_harmonics * bearing_lateral_each_N;          % all 4 harmonics lined up
-bearing_axial_N        = number_of_harmonics * bearing_axial_each_N;
+% ---- 5B. Stiffness from geometry and preload ----
+cup_angle_rad    = bearing_cup_angle_deg * pi / 180;
+roller_load_N    = bearing_preload_N ./ (bearing_rollers .* sin(cup_angle_rad));                 % Q0, load on each roller
+contact_defl_m   = 3.84e-5 * roller_load_N .^ 0.9 ./ bearing_roller_length_mm .^ 0.8 * 1e-3;      % Palmgren, one line contact [m]
+roller_defl_m    = 2 * contact_defl_m;                                                            % inner + outer contact
+roller_stiffness_Npm = (10 / 9) * roller_load_N ./ roller_defl_m;                                 % k = dQ/d(deflection)
+stiffness_source = {'geometry', 'geometry', 'geometry'};
+for r = 1:number_of_rotors
+    if ~isempty(radial_stiffness_entered{r})                    % supplier value -> back out the roller stiffness
+        roller_stiffness_Npm(r) = 2 * radial_stiffness_entered{r} / (bearing_rollers(r) * cos(cup_angle_rad(r)) ^ 2);
+        stiffness_source{r} = 'entered';
+    end
+end
+bearing_radial_stiffness_Npm = bearing_rollers / 2 .* roller_stiffness_Npm .* cos(cup_angle_rad) .^ 2;   % one bearing
+bearing_axial_stiffness_Npm  = bearing_rollers     .* roller_stiffness_Npm .* sin(cup_angle_rad) .^ 2;   % one bearing
+natural_freq_radial_hz = sqrt(2 * bearing_radial_stiffness_Npm ./ mass_kg) / (2 * pi);   % rotor on its 2 bearings, lateral
+natural_freq_axial_hz  = sqrt(2 * bearing_axial_stiffness_Npm  ./ mass_kg) / (2 * pi);   % rotor on its 2 bearings, axial
+
+% ---- 5C. Disturbance lines from the specified imperfections ----
+%  Each line: rotor, source, waviness order, direction (1 = lateral, 3 = axial),
+%  frequency at max speed [Hz], and blocked force from bearing A and bearing B [N].
+%  Race waviness of order q, summed over the Z rollers, gives a net force only when
+%    lateral: q = kZ +/- 1  -> magnitude (Z/2) k A cos(angle) per order
+%    axial  : q = kZ        -> magnitude  Z    k A sin(angle)
+%  Inner race (fixed)  : lateral and axial lines at k x (inner race pass)
+%  Outer race (turning): lateral at k x (outer race pass) +/- fr, axial at k x (outer race pass)
+%  Roller waviness, even order q = 2k (changes the roller diameter by 2A):
+%    lateral at 2k x (roller spin) +/- cage, axial at 2k x (roller spin)
+%  Roller size variation: a bigger roller carries extra load and travels with the
+%    cage -> lateral line at the cage frequency.
+line_rotor = [];  line_source = {};  line_order = {};  line_dir = [];  line_freq_hz = [];  line_blocked_N = zeros(0, 2);
+
+for r = 1:number_of_rotors
+    Z  = bearing_rollers(r);
+    kr = roller_stiffness_Npm(r);
+    ca = cos(cup_angle_rad(r));
+    sa = sin(cup_angle_rad(r));
+    fr = speed_hz(r);
+    fc = bearing_frequency_hz(r, 1);
+    fo = bearing_frequency_hz(r, 2);
+    fi = bearing_frequency_hz(r, 3);
+    fb = bearing_frequency_hz(r, 4);
+    if strcmpi(roller_waviness_sum, 'random')
+        roller_count_factor = sqrt(Z);
+    else
+        roller_count_factor = Z;
+    end
+    A_out = outer_waviness_m(r, :);
+    A_in  = inner_waviness_m(r, :);
+    A_rol = roller_waviness_m(r, :);
+    D_var = roller_size_var_m(r, :);
+
+    for k = 1:bearing_harmonic_count
+        % inner race (fixed): orders kZ-1 and kZ+1 land on the same frequency, so they add
+        line_rotor(end+1) = r; line_source{end+1} = 'Inner race waviness'; line_order{end+1} = sprintf('%dZ-1, %dZ+1', k, k);
+        line_dir(end+1) = 1;   line_freq_hz(end+1) = k * fi;               line_blocked_N(end+1, :) = 2 * (Z / 2) * kr * ca * A_in;
+        line_rotor(end+1) = r; line_source{end+1} = 'Inner race waviness'; line_order{end+1} = sprintf('%dZ', k);
+        line_dir(end+1) = 3;   line_freq_hz(end+1) = k * fi;               line_blocked_N(end+1, :) = Z * kr * sa * A_in;
+        % outer race (turning with the rotor)
+        line_rotor(end+1) = r; line_source{end+1} = 'Outer race waviness'; line_order{end+1} = sprintf('%dZ+1', k);
+        line_dir(end+1) = 1;   line_freq_hz(end+1) = k * fo + fr;          line_blocked_N(end+1, :) = (Z / 2) * kr * ca * A_out;
+        line_rotor(end+1) = r; line_source{end+1} = 'Outer race waviness'; line_order{end+1} = sprintf('%dZ-1', k);
+        line_dir(end+1) = 1;   line_freq_hz(end+1) = abs(k * fo - fr);     line_blocked_N(end+1, :) = (Z / 2) * kr * ca * A_out;
+        line_rotor(end+1) = r; line_source{end+1} = 'Outer race waviness'; line_order{end+1} = sprintf('%dZ', k);
+        line_dir(end+1) = 3;   line_freq_hz(end+1) = k * fo;               line_blocked_N(end+1, :) = Z * kr * sa * A_out;
+        % rollers (even waviness order 2k)
+        line_rotor(end+1) = r; line_source{end+1} = 'Roller waviness';     line_order{end+1} = sprintf('%d', 2 * k);
+        line_dir(end+1) = 1;   line_freq_hz(end+1) = 2 * k * fb + fc;      line_blocked_N(end+1, :) = roller_count_factor * kr * ca * A_rol;
+        line_rotor(end+1) = r; line_source{end+1} = 'Roller waviness';     line_order{end+1} = sprintf('%d', 2 * k);
+        line_dir(end+1) = 1;   line_freq_hz(end+1) = abs(2 * k * fb - fc); line_blocked_N(end+1, :) = roller_count_factor * kr * ca * A_rol;
+        line_rotor(end+1) = r; line_source{end+1} = 'Roller waviness';     line_order{end+1} = sprintf('%d', 2 * k);
+        line_dir(end+1) = 3;   line_freq_hz(end+1) = 2 * k * fb;           line_blocked_N(end+1, :) = roller_count_factor * 2 * kr * sa * A_rol;
+    end
+    line_rotor(end+1) = r; line_source{end+1} = 'Roller size variation'; line_order{end+1} = '-';
+    line_dir(end+1) = 1;   line_freq_hz(end+1) = fc;                     line_blocked_N(end+1, :) = kr * ca * D_var;
+end
+line_blocked_total_N = sum(line_blocked_N, 2)';          % bearing A + bearing B (worst case: in phase)
+
+% Linear model check: imperfections must be small next to the preload deflection
+largest_imposed_m = max(outer_waviness_m + inner_waviness_m + 2 * roller_waviness_m + roller_size_var_m, [], 2)';
+linearity_ratio   = largest_imposed_m ./ roller_defl_m;   % keep well below 1 (rollers stay loaded)
+
+% ---- 5D. Force that reaches the stationary shaft ----
+%  The imperfection pushes the rotor on its bearings. Below the rotor-bearing
+%  natural frequency the rotor follows and only its inertia force reaches the
+%  shaft; far above it the full blocked force does. Transmissibility:
+transmissibility = @(ratio) ratio .^ 2 ./ sqrt((1 - ratio .^ 2) .^ 2 + (2 * bearing_damping_ratio * ratio) .^ 2);
+line_natural_hz  = natural_freq_radial_hz(line_rotor);
+is_axial_line    = (line_dir == 3);
+line_natural_hz(is_axial_line) = natural_freq_axial_hz(line_rotor(is_axial_line));
+% Transmitted force of every line at a speed factor s (1 = max speed): frequencies scale with s
+bearing_line_force = @(speed_factor) line_blocked_total_N .* transmissibility(speed_factor * line_freq_hz ./ line_natural_hz);
+line_force_N = bearing_line_force(1);
+
+% Totals per rotor (worst case: all lines added)
+bearing_lateral_N = zeros(1, number_of_rotors);
+bearing_axial_N   = zeros(1, number_of_rotors);
+for r = 1:number_of_rotors
+    bearing_lateral_N(r) = sum(line_force_N(line_rotor == r & line_dir == 1));
+    bearing_axial_N(r)   = sum(line_force_N(line_rotor == r & line_dir == 3));
+end
 
 
 %% ========================================================================
@@ -317,6 +473,7 @@ for r = 1:number_of_rotors
                            bearing_moment;          % Mx
                            bearing_moment;          % My
                            0];                      % Mz (bearing drag is internal: motor and bearings cancel)
+    % Note: the bearing force reaches the shaft as the rotor's reaction, so it acts at the rotor center of mass.
 end
 
 % ---- Group the columns ----
@@ -349,7 +506,7 @@ final_Mz_Nm = all_total(6);
 %% ========================================================================
 %  SECTION 6B: ARITHMETIC CHECKS  (the script checks its own math every run)
 %  NOTE: these prove the code calculates its equations correctly. They do
-%  NOT prove the inputs or estimates (tilt, bearing_kick_ratio) are right.
+%  NOT prove the inputs or estimates (tilt, imperfection amplitudes) are right.
 %  ------------------------------------------------------------------------
 %  Each check redoes a result a DIFFERENT way (by hand formula or a known
 %  identity) and compares it with what the script calculated above.
@@ -394,11 +551,15 @@ identity_2 = bearing_harmonic(:, 2) - bearing_rollers' .* (1 - bearing_harmonic(
 check_names{end+1}  = '6. Bearing identities: cup + cone = rollers, cup = rollers x (1 - cage)';
 check_passed(end+1) = max(abs([identity_1; identity_2])) <= 1e-9;
 
-% 7. Bearing force = rollers' kick x 4 harmonics, axial = lateral x tan(cup angle)
-hand_lateral = 4 * bearing_kick_ratio * static_imbalance_force_N;
-hand_axial   = hand_lateral .* sin(bearing_cup_angle_deg * pi / 180) ./ cos(bearing_cup_angle_deg * pi / 180);
-check_names{end+1}  = '7. Bearing lateral and axial force';
-check_passed(end+1) = max(abs([hand_lateral - bearing_lateral_N, hand_axial - bearing_axial_N])) <= check_tol * max([hand_lateral, eps]);
+% 7. Bearing radial stiffness (Z/2) k cos^2 = sum over rollers of k cos^2(angle) cos^2(roller position)
+stiffness_error = 0;
+for r = 1:number_of_rotors
+    roller_angle = 2 * pi * (0:bearing_rollers(r) - 1) / bearing_rollers(r);
+    hand_value = sum(roller_stiffness_Npm(r) * cos(cup_angle_rad(r)) ^ 2 * cos(roller_angle) .^ 2);
+    stiffness_error = max(stiffness_error, abs(hand_value - bearing_radial_stiffness_Npm(r)) / hand_value);
+end
+check_names{end+1}  = '7. Bearing radial stiffness = sum over every roller';
+check_passed(end+1) = stiffness_error <= 1e-9;
 
 % 8. Twist by hand:  Mz = Izz x speed / ramp time
 hand_value = Izz_kgm2 .* (2 * pi * max_speed_rpm / 60) / ramp_time_s;
@@ -421,6 +582,32 @@ hand_total(6) = abs(hand_total(6));
 check_names{end+1}  = '11. TOTAL = arm + wheels + bearings';
 check_passed(end+1) = max(abs(hand_total - all_total)) <= check_tol * max(abs(hand_total));
 
+% 12. Waviness selection rule: summed over Z rollers, order kZ +/- 1 gives Z/2 (lateral),
+%     order kZ gives Z (axial), any other order gives zero
+rule_error = 0;
+for r = 1:number_of_rotors
+    Z = bearing_rollers(r);
+    roller_angle = 2 * pi * (0:Z - 1) / Z;
+    rule_error = max([rule_error, ...
+        abs(sum(cos((Z + 1) * roller_angle) .* cos(roller_angle)) - Z / 2), ...
+        abs(sum(cos((Z - 1) * roller_angle) .* cos(roller_angle)) - Z / 2), ...
+        abs(sum(cos(Z * roller_angle)) - Z), ...
+        abs(sum(cos((Z + 2) * roller_angle) .* cos(roller_angle)))]);
+end
+check_names{end+1}  = '12. Waviness rule: only orders kZ +/- 1 (lateral) and kZ (axial) give net force';
+check_passed(end+1) = rule_error <= 1e-9;
+
+% 13. Bearing totals = sum of every bearing line (bearing A + bearing B, through the transmissibility)
+hand_lateral = zeros(1, number_of_rotors);
+for i = 1:numel(line_dir)
+    if line_dir(i) == 1
+        ratio = line_freq_hz(i) / natural_freq_radial_hz(line_rotor(i));
+        hand_lateral(line_rotor(i)) = hand_lateral(line_rotor(i)) + sum(line_blocked_N(i, :)) * ratio ^ 2 / sqrt((1 - ratio ^ 2) ^ 2 + (2 * bearing_damping_ratio * ratio) ^ 2);
+    end
+end
+check_names{end+1}  = '13. Bearing lateral total = sum of all bearing lines';
+check_passed(end+1) = max(abs(hand_lateral - bearing_lateral_N)) <= check_tol * max([hand_lateral, eps]);
+
 number_of_checks = numel(check_passed);
 all_checks_ok    = all(check_passed);
 
@@ -429,7 +616,8 @@ all_checks_ok    = all(check_passed);
 %  SECTION 7: PLOTS
 %  ------------------------------------------------------------------------
 %  Plot 1: sideways force (Fx = Fy) vs RPM    Plot 2: axial force (Fz) vs RPM
-%  Every load grows with speed squared: load(speed) = load(max) x (speed/max)^2
+%  Imbalance loads grow with speed squared. Bearing loads are recalculated at
+%  every speed (their frequencies move against the rotor-bearing resonance).
 %  The wheels follow the arm, so the x-axis is arm speed.
 %  ========================================================================
 
@@ -447,11 +635,21 @@ if make_plots
     curve_colors = [0.85 0.33 0.10; 0.00 0.45 0.74; 0.47 0.67 0.19; 0.49 0.18 0.56; 0 0 0];
     curve_lines  = {'-.', '-', '--', ':', '-'};
 
+    % bearing totals at every plotted speed: column 1 = lateral, column 2 = axial
+    bearing_curve = zeros(numel(speed_fraction), 2);
+    for i = 1:numel(speed_fraction)
+        speed_line_force = bearing_line_force(speed_fraction(i));
+        bearing_curve(i, 1) = sum(speed_line_force(line_dir == 1));
+        bearing_curve(i, 2) = sum(speed_line_force(line_dir == 3));
+    end
+
     for n = 1:2
         fprintf('Drawing plot %d...\n', n);
         try
             row = plot_row(n);
-            curve_values = [arm_loads(row), wheel_loads(row, 1), wheel_loads(row, 2), bearings_total(row), all_total(row)];
+            curve_values = [arm_loads(row) * curve_shape, wheel_loads(row, 1) * curve_shape, ...
+                            wheel_loads(row, 2) * curve_shape, bearing_curve(:, n)];
+            curve_values = [curve_values, sum(curve_values, 2)];      % last column = TOTAL
             figure(n);
             clf;
             try
@@ -461,12 +659,12 @@ if make_plots
             hold on;
             grid on;
             box on;
-            for c = 1:numel(curve_values)
+            for c = 1:size(curve_values, 2)
                 line_width = 2;
-                if c == numel(curve_values)
+                if c == size(curve_values, 2)
                     line_width = 3;
                 end
-                plot(arm_axis_rpm, curve_values(c) * curve_shape, curve_lines{c}, ...
+                plot(arm_axis_rpm, curve_values(:, c), curve_lines{c}, ...
                      'Color', curve_colors(c, :), 'LineWidth', line_width);
             end
             plot(max_speed_rpm(arm_index), all_total(row), 'ko', 'MarkerFaceColor', 'k');
@@ -528,7 +726,7 @@ end
 
 part_titles  = {sprintf('PART 1: ARM  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(arm_index)), ...
                 sprintf('PART 2: MOMENTUM WHEELS  -  static + dynamic imbalance  (%.0f RPM)', max_speed_rpm(1)), ...
-                'PART 3: BEARINGS  -  harmonics of each rotor''s RPM  (rough estimate)', ...
+                'PART 3: BEARINGS  -  geometry, stiffness, preload and specified imperfections', ...
                 'PART 4: ALL TOGETHER  -  FINAL ANSWER, WORST-CASE ESTIMATE  (arm + wheels + bearings)'};
 part_columns = {{'Arm'}, ...
                 {rotor_names{1}, rotor_names{3}, 'Wheels total'}, ...
@@ -570,12 +768,37 @@ for part = 1:4
         end
         fprintf('\n');
     elseif part == 3
-        fprintf('\n   Each harmonic (frequency = harmonic x RPM / 60):\n');
-        fprintf('   %-10s %-13s %10s %12s %14s %14s\n', 'Rotor', 'Harmonic', 'x RPM', 'Freq [Hz]', 'Fx = Fy [N]', 'Fz [N]');
+        fprintf('\n   Bearing model (per bearing; each rotor has bearing A and bearing B):\n');
+        fprintf('   %-8s %9s %10s %12s %12s %12s %11s %11s %10s\n', 'Rotor', 'Q0 [N]', 'defl [um]', 'k roller', ...
+            'K radial', 'K axial', 'fn lat', 'fn axial', 'stiffness');
+        fprintf('   %-8s %9s %10s %12s %12s %12s %11s %11s %10s\n', '', '', '', '[N/m]', '[N/m]', '[N/m]', '[Hz]', '[Hz]', '');
         for r = 1:number_of_rotors
-            for k = 1:number_of_harmonics
-                fprintf('   %-10s %-13s %10.3f %12.2f %14.4g %14.4g\n', rotor_names{r}, harmonic_names{k}, ...
-                    bearing_harmonic(r, k), bearing_frequency_hz(r, k), bearing_lateral_each_N(r), bearing_axial_each_N(r));
+            fprintf('   %-8s %9.4g %10.3g %12.4g %12.4g %12.4g %11.4g %11.4g %10s\n', rotor_names{r}, roller_load_N(r), ...
+                roller_defl_m(r) * 1e6, roller_stiffness_Npm(r), bearing_radial_stiffness_Npm(r), ...
+                bearing_axial_stiffness_Npm(r), natural_freq_radial_hz(r), natural_freq_axial_hz(r), stiffness_source{r});
+        end
+        for r = 1:number_of_rotors
+            if linearity_ratio(r) > 0.5
+                fprintf('   WARNING %s: imperfections are %.0f%% of the preload deflection - rollers may unload,\n', ...
+                    rotor_names{r}, 100 * linearity_ratio(r));
+                fprintf('           the linear bearing model is not reliable. Raise the preload or check the inputs.\n');
+            end
+        end
+
+        fprintf('\n   Characteristic frequencies at max speed [Hz]:\n');
+        fprintf('   %-8s %12s %16s %16s %13s\n', 'Rotor', harmonic_names{:});
+        for r = 1:number_of_rotors
+            fprintf('   %-8s %12.2f %16.2f %16.2f %13.2f\n', rotor_names{r}, bearing_frequency_hz(r, :));
+        end
+
+        direction_names = {'lateral', '', 'axial'};
+        for r = 1:number_of_rotors
+            fprintf('\n   %s bearing lines  (blocked = stiffness x imperfection; at shaft = after rotor-bearing dynamics)\n', rotor_names{r});
+            fprintf('   %10s  %-8s %-22s %-12s %12s %12s %13s\n', 'Freq [Hz]', 'Dir', 'Source', 'Order q', ...
+                'Blocked A', 'Blocked B', 'At shaft [N]');
+            for i = find(line_rotor == r)
+                fprintf('   %10.2f  %-8s %-22s %-12s %12.4g %12.4g %13.4g\n', line_freq_hz(i), direction_names{line_dir(i)}, ...
+                    line_source{i}, line_order{i}, line_blocked_N(i, 1), line_blocked_N(i, 2), line_force_N(i));
             end
         end
     elseif part == 4
@@ -588,16 +811,22 @@ for part = 1:4
         fprintf('     The sideways resultant = Fx (not 1.41 x Fx). Same for Mx and My.\n');
         fprintf('   - WORST CASE: every source and every moment part is added as if their peaks\n');
         fprintf('     line up (phases are unknown). Real loads are equal or lower.\n');
-        fprintf('   - Ud uses the worst tilt direction. Bearing values (incl. Fz) are rough estimates.\n');
-        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt and bearing kick ratio are estimates.\n');
-        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, test-based bearing amplitudes.\n');
+        fprintf('   - Ud uses the worst tilt direction. Bearing loads follow from the specified imperfections.\n');
+        fprintf('\n   ASSUMPTIONS: hard-mounted (rigid base). Tilt is an estimate. Bearing imperfections are as specified.\n');
+        fprintf('   NOT INCLUDED: structural resonance, motor torque ripple, broadband noise.\n');
         if ~isempty(report_arm_rpm)
-            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; every value grows with speed squared)\n');
+            fprintf('\n   AT OTHER SPEEDS  (TOTAL; wheels follow the arm; imbalance x speed^2, bearings recalculated)\n');
             fprintf('   %10s %12s %14s %14s %16s\n', 'Arm RPM', 'Wheel RPM', 'Fx = Fy [N]', 'Fz [N]', 'Mx = My [N*m]');
             for i = 1:numel(report_arm_rpm)
                 speed_ratio = report_arm_rpm(i) / max_speed_rpm(arm_index);
+                speed_line_force = bearing_line_force(speed_ratio);
+                lateral_lines = (line_dir == 1);
+                speed_Fx = (arm_loads(1) + wheels_total(1)) * speed_ratio ^ 2 + sum(speed_line_force(lateral_lines));
+                speed_Fz = sum(speed_line_force(line_dir == 3));
+                speed_Mx = (arm_loads(4) + wheels_total(4)) * speed_ratio ^ 2 + ...
+                           sum(speed_line_force(lateral_lines) .* lever_arm_m(line_rotor(lateral_lines)));
                 fprintf('   %10.1f %12.1f %14.4g %14.4g %16.4g\n', report_arm_rpm(i), max_speed_rpm(1) * speed_ratio, ...
-                    all_total(1) * speed_ratio ^ 2, all_total(3) * speed_ratio ^ 2, all_total(4) * speed_ratio ^ 2);
+                    speed_Fx, speed_Fz, speed_Mx);
             end
         end
     end
